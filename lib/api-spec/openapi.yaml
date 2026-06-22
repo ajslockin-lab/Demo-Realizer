@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FIFA World Cup 2026 AI Predictor API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: predict
+    description: AI match prediction
 paths:
   /healthz:
     get:
@@ -24,6 +25,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /predict:
+    post:
+      operationId: predictMatch
+      tags: [predict]
+      summary: Predict a match outcome using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "200":
+          description: AI prediction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prediction"
+        "500":
+          description: Prediction failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +61,89 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MatchInput:
+      type: object
+      required:
+        - id
+        - home
+        - away
+        - group
+        - venue
+        - date
+        - time
+        - homeRank
+        - awayRank
+        - homeForm
+        - awayForm
+        - homeGF
+        - homeGA
+        - awayGF
+        - awayGA
+      properties:
+        id:
+          type: string
+        home:
+          type: string
+        away:
+          type: string
+        group:
+          type: string
+        venue:
+          type: string
+        date:
+          type: string
+        time:
+          type: string
+        homeRank:
+          type: integer
+        awayRank:
+          type: integer
+        homeForm:
+          type: string
+        awayForm:
+          type: string
+        homeGF:
+          type: integer
+        homeGA:
+          type: integer
+        awayGF:
+          type: integer
+        awayGA:
+          type: integer
+
+    Prediction:
+      type: object
+      required:
+        - homeWinPct
+        - drawPct
+        - awayWinPct
+        - predictedScore
+        - keyFactors
+        - confidence
+        - analysis
+      properties:
+        homeWinPct:
+          type: integer
+        drawPct:
+          type: integer
+        awayWinPct:
+          type: integer
+        predictedScore:
+          type: string
+        keyFactors:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: string
+          enum: ["High", "Medium", "Low"]
+        analysis:
+          type: string
