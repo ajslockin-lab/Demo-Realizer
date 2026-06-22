@@ -8,6 +8,9 @@ const router = Router();
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 
+// In-memory cache: key = "home|away|date", value = lineup result
+const lineupCache = new Map<string, unknown>();
+
 router.post("/lineup", async (req, res) => {
   const parsed = GetLineupBody.safeParse(req.body);
   if (!parsed.success) {
@@ -16,6 +19,14 @@ router.post("/lineup", async (req, res) => {
   }
 
   const { home, away, group, date } = parsed.data;
+  const cacheKey = `${home}|${away}|${date}`;
+
+  // Return cached result immediately if available
+  if (lineupCache.has(cacheKey)) {
+    res.json(lineupCache.get(cacheKey));
+    return;
+  }
+
   const homeStats = TEAM_STATS[home];
   const awayStats = TEAM_STATS[away];
   const homePlayers = getPlayersForTeam(home);
@@ -99,6 +110,7 @@ IMPORTANT: xi must contain exactly 11 players.`;
     if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON in response");
     const result = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
 
+    lineupCache.set(cacheKey, result);
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Lineup prediction failed, using fallback");

@@ -114,10 +114,11 @@ export default function App() {
 
             {/* Matches */}
             <div className="space-y-5">
-              {dayMatches.map(match => (
+              {dayMatches.map((match, idx) => (
                 <MatchDetailCard
                   key={match.id}
                   match={match}
+                  matchIndex={idx}
                   onPrediction={p => setHistory(prev => [{ match, prediction: p, ts: Date.now() }, ...prev])}
                 />
               ))}
@@ -242,19 +243,23 @@ export default function App() {
 
 /* ── Match Detail Card ──────────────────────────────────────── */
 
-function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: (p: Prediction) => void }) {
+function MatchDetailCard({ match, matchIndex, onPrediction }: { match: Match; matchIndex: number; onPrediction: (p: Prediction) => void }) {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [showLineup, setShowLineup] = useState(false);
   const [lineup, setLineup] = useState<LineupPrediction | null>(null);
   const predict = usePredictMatch();
   const lineupMutation = useGetLineup();
 
-  // Auto-fetch lineup on mount
+  // Auto-fetch lineup on mount — staggered by index to avoid hitting Groq rate limits
   useEffect(() => {
-    lineupMutation.mutate(
-      { data: { home: match.home, away: match.away, group: match.group, date: match.date } },
-      { onSuccess: (data) => setLineup(data) }
-    );
+    const delay = matchIndex * 1500;
+    const timer = setTimeout(() => {
+      lineupMutation.mutate(
+        { data: { home: match.home, away: match.away, group: match.group, date: match.date } },
+        { onSuccess: (data) => setLineup(data) }
+      );
+    }, delay);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id]);
 
