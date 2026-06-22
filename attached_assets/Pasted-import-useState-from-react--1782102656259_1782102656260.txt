@@ -1,0 +1,584 @@
+import { useState } from "react";
+
+// ================================================================
+//  FIFA WORLD CUP 2026 — AI MATCH PREDICTOR
+//  Powered by Claude (claude-sonnet-4-6) · Real WC 2026 live data
+//  Copy this file into any React environment and run!
+// ================================================================
+
+// ── Colour palette ───────────────────────────────────────────────
+const K = {
+  bg:"#06101d", surf:"#0c1928", card:"#0f1f35", border:"#1a2e4a",
+  green:"#00a650", greenFg:"#22d975", greenBg:"rgba(0,166,80,0.12)",
+  gold:"#ffd700", goldBg:"rgba(255,215,0,0.07)",
+  text:"#d8e8f5", dim:"#526a8a",
+  win:"#22c55e", draw:"#7f90a8", loss:"#ef4444",
+};
+
+// ── Team data: [flag, FIFA_rank, last5form, wc_gf, wc_ga] ────────
+const TD = {
+  "Argentina":          ["🇦🇷",  2,  "WWWWW", 7,  0],
+  "Austria":            ["🇦🇹",  25, "WWWWL", 4,  2],
+  "France":             ["🇫🇷",  3,  "WWWWW", 6,  1],
+  "Iraq":               ["🇮🇶",  80, "LLWLL", 1,  4],
+  "Norway":             ["🇳🇴",  11, "WWWLW", 5,  2],
+  "Senegal":            ["🇸🇳",  20, "LWWDL", 1,  3],
+  "Jordan":             ["🇯🇴",  87, "WLLLL", 1,  3],
+  "Algeria":            ["🇩🇿",  32, "LWWLL", 0,  3],
+  "Portugal":           ["🇵🇹",  6,  "WWDWW", 5,  2],
+  "Uzbekistan":         ["🇺🇿",  74, "LWDLL", 1,  3],
+  "England":            ["🏴󠁧󠁢󠁥󠁮󠁧󠁿",  4,  "WWWWW", 8,  3],
+  "Ghana":              ["🇬🇭",  60, "WLWDW", 3,  1],
+  "Panama":             ["🇵🇦",  72, "LWLLL", 0,  1],
+  "Croatia":            ["🇭🇷",  10, "WDWLL", 2,  4],
+  "Colombia":           ["🇨🇴",  12, "WWWWW", 4,  2],
+  "DR Congo":           ["🇨🇩",  56, "WDLLW", 2,  4],
+  "Switzerland":        ["🇨🇭",  19, "WDWDW", 5,  2],
+  "Canada":             ["🇨🇦",  39, "DWWWW", 7,  1],
+  "Bosnia-Herzegovina": ["🇧🇦",  55, "LDLLL", 2,  5],
+  "Qatar":              ["🇶🇦",  60, "DLLLL", 1,  7],
+  "Scotland":           ["🏴󠁧󠁢󠁳󠁣󠁴󠁿",  38, "WDWDL", 1,  1],
+  "Brazil":             ["🇧🇷",  5,  "WWWWW", 5,  1],
+  "Morocco":            ["🇲🇦",  14, "WWWWW", 3,  1],
+  "Haiti":              ["🇭🇹",  95, "LLWLL", 0,  4],
+  "Czechia":            ["🇨🇿",  35, "WDWLL", 2,  3],
+  "Mexico":             ["🇲🇽",  15, "WWWWW", 3,  0],
+  "South Africa":       ["🇿🇦",  68, "LDWLL", 1,  3],
+  "South Korea":        ["🇰🇷",  23, "WWLWW", 3,  2],
+  "Ecuador":            ["🇪🇨",  46, "LLDLL", 0,  1],
+  "Germany":            ["🇩🇪",  13, "WWWWW", 9,  2],
+  "Curacao":            ["🇨🇼",  99, "DLLLL", 1,  7],
+  "Ivory Coast":        ["🇨🇮",  47, "WLLLL", 2,  3],
+  "Japan":              ["🇯🇵",  19, "DDWWW", 6,  2],
+  "Sweden":             ["🇸🇪",  30, "WDLLW", 6,  6],
+  "Tunisia":            ["🇹🇳",  51, "LLLLL", 1,  9],
+  "Netherlands":        ["🇳🇱",  7,  "DWWWW", 7,  2],
+  "Turkey":             ["🇹🇷",  36, "LLLLL", 0,  4],
+  "USA":                ["🇺🇸",  14, "WWWWW", 6,  1],
+  "Paraguay":           ["🇵🇾",  63, "LWWLL", 2,  4],
+  "Australia":          ["🇦🇺",  23, "WWLWW", 2,  1],
+  "Spain":              ["🇪🇸",  1,  "DWWWW", 4,  0],
+  "Uruguay":            ["🇺🇾",  18, "DDDLW", 3,  3],
+  "Saudi Arabia":       ["🇸🇦",  56, "DLLLL", 1,  5],
+  "Cabo Verde":         ["🇨🇻",  76, "DWDLL", 2,  3],
+  "Egypt":              ["🇪🇬",  45, "WDDWW", 4,  2],
+  "Iran":               ["🇮🇷",  25, "DDLWL", 3,  3],
+  "New Zealand":        ["🇳🇿", 101, "DLLLL", 3,  5],
+  "Belgium":            ["🇧🇪",  4,  "DDDWW", 2,  2],
+};
+const td = n => TD[n] || ["🏳", 50, "WDWDL", 2, 2];
+
+// ── All upcoming matches (June 22 – 27, Group Stage) ─────────────
+const MATCHES = [
+  // ── June 22 (Matchday 2) ────────────────────────────────────────
+  {id:"j2a",date:"Jun 22",time:"1:00 PM ET", home:"Argentina",         away:"Austria",       group:"J",venue:"AT&T Stadium, Arlington TX"},
+  {id:"i2a",date:"Jun 22",time:"5:00 PM ET", home:"France",            away:"Iraq",           group:"I",venue:"Lincoln Financial Field, Philadelphia"},
+  {id:"i2b",date:"Jun 22",time:"8:00 PM ET", home:"Norway",            away:"Senegal",        group:"I",venue:"MetLife Stadium, New Jersey"},
+  {id:"j2b",date:"Jun 22",time:"11:00 PM ET",home:"Jordan",            away:"Algeria",        group:"J",venue:"Levi's Stadium, Santa Clara CA"},
+  // ── June 23 ─────────────────────────────────────────────────────
+  {id:"k2a",date:"Jun 23",time:"1:00 PM ET", home:"Portugal",          away:"Uzbekistan",     group:"K",venue:"NRG Stadium, Houston TX"},
+  {id:"l2a",date:"Jun 23",time:"4:00 PM ET", home:"England",           away:"Ghana",          group:"L",venue:"Gillette Stadium, Foxborough MA"},
+  {id:"l2b",date:"Jun 23",time:"7:00 PM ET", home:"Panama",            away:"Croatia",        group:"L",venue:"BMO Field, Toronto"},
+  {id:"k2b",date:"Jun 23",time:"10:00 PM ET",home:"Colombia",          away:"DR Congo",       group:"K",venue:"Estadio Akron, Guadalajara"},
+  // ── June 24 (Matchday 3 – simultaneous) ─────────────────────────
+  {id:"b3a",date:"Jun 24",time:"3:00 PM ET", home:"Switzerland",       away:"Canada",         group:"B",venue:"BC Place, Vancouver"},
+  {id:"b3b",date:"Jun 24",time:"3:00 PM ET", home:"Bosnia-Herzegovina",away:"Qatar",          group:"B",venue:"Lumen Field, Seattle WA"},
+  {id:"c3a",date:"Jun 24",time:"6:00 PM ET", home:"Scotland",          away:"Brazil",         group:"C",venue:"Hard Rock Stadium, Miami FL"},
+  {id:"c3b",date:"Jun 24",time:"6:00 PM ET", home:"Morocco",           away:"Haiti",          group:"C",venue:"Mercedes-Benz Stadium, Atlanta"},
+  {id:"a3a",date:"Jun 24",time:"9:00 PM ET", home:"Czechia",           away:"Mexico",         group:"A",venue:"Estadio Azteca, Mexico City"},
+  {id:"a3b",date:"Jun 24",time:"9:00 PM ET", home:"South Africa",      away:"South Korea",    group:"A",venue:"Estadio Akron, Guadalajara"},
+  // ── June 25 ─────────────────────────────────────────────────────
+  {id:"e3a",date:"Jun 25",time:"4:00 PM ET", home:"Ecuador",           away:"Germany",        group:"E",venue:"Lincoln Financial Field, Philadelphia"},
+  {id:"e3b",date:"Jun 25",time:"4:00 PM ET", home:"Curacao",           away:"Ivory Coast",    group:"E",venue:"Arrowhead Stadium, Kansas City"},
+  {id:"f3a",date:"Jun 25",time:"7:00 PM ET", home:"Japan",             away:"Sweden",         group:"F",venue:"AT&T Stadium, Arlington TX"},
+  {id:"f3b",date:"Jun 25",time:"7:00 PM ET", home:"Tunisia",           away:"Netherlands",    group:"F",venue:"Estadio BBVA, Monterrey"},
+  {id:"d3a",date:"Jun 25",time:"10:00 PM ET",home:"Turkey",            away:"USA",            group:"D",venue:"SoFi Stadium, Inglewood CA"},
+  {id:"d3b",date:"Jun 25",time:"10:00 PM ET",home:"Paraguay",          away:"Australia",      group:"D",venue:"Levi's Stadium, San Francisco"},
+  // ── June 26 ─────────────────────────────────────────────────────
+  {id:"i3a",date:"Jun 26",time:"3:00 PM ET", home:"Norway",            away:"France",         group:"I",venue:"Gillette Stadium, Boston MA"},
+  {id:"i3b",date:"Jun 26",time:"3:00 PM ET", home:"Senegal",           away:"Iraq",           group:"I",venue:"BMO Field, Toronto"},
+  {id:"h3a",date:"Jun 26",time:"8:00 PM ET", home:"Cabo Verde",        away:"Saudi Arabia",   group:"H",venue:"NRG Stadium, Houston TX"},
+  {id:"h3b",date:"Jun 26",time:"8:00 PM ET", home:"Uruguay",           away:"Spain",          group:"H",venue:"Estadio Akron, Guadalajara"},
+  {id:"g3a",date:"Jun 26",time:"11:00 PM ET",home:"Egypt",             away:"Iran",           group:"G",venue:"Lumen Field, Seattle WA"},
+  {id:"g3b",date:"Jun 26",time:"11:00 PM ET",home:"New Zealand",       away:"Belgium",        group:"G",venue:"BC Place, Vancouver"},
+  // ── June 27 (Final Group Stage Day) ─────────────────────────────
+  {id:"l3a",date:"Jun 27",time:"5:00 PM ET", home:"Panama",            away:"England",        group:"L",venue:"MetLife Stadium, New Jersey"},
+  {id:"l3b",date:"Jun 27",time:"5:00 PM ET", home:"Croatia",           away:"Ghana",          group:"L",venue:"Lincoln Financial Field, Philadelphia"},
+  {id:"k3a",date:"Jun 27",time:"7:30 PM ET", home:"Colombia",          away:"Portugal",       group:"K",venue:"Hard Rock Stadium, Miami FL"},
+  {id:"k3b",date:"Jun 27",time:"7:30 PM ET", home:"DR Congo",          away:"Uzbekistan",     group:"K",venue:"Mercedes-Benz Stadium, Atlanta"},
+  {id:"j3a",date:"Jun 27",time:"10:00 PM ET",home:"Jordan",            away:"Argentina",      group:"J",venue:"AT&T Stadium, Arlington TX"},
+  {id:"j3b",date:"Jun 27",time:"10:00 PM ET",home:"Algeria",           away:"Austria",        group:"J",venue:"Arrowhead Stadium, Kansas City"},
+];
+
+// ── Group standings (after Matchday 2, June 21 cutoff) ───────────
+const ST = {
+  A:[{t:"Mexico",      f:"🇲🇽",p:2,w:2,d:0,l:0,gf:3,ga:0,pts:6},
+     {t:"South Korea", f:"🇰🇷",p:2,w:1,d:0,l:1,gf:3,ga:2,pts:3},
+     {t:"Czechia",     f:"🇨🇿",p:2,w:0,d:1,l:1,gf:2,ga:3,pts:1},
+     {t:"South Africa",f:"🇿🇦",p:2,w:0,d:1,l:1,gf:1,ga:4,pts:1}],
+  B:[{t:"Canada",      f:"🇨🇦",p:2,w:1,d:1,l:0,gf:7,ga:1,pts:4},
+     {t:"Switzerland", f:"🇨🇭",p:2,w:1,d:1,l:0,gf:5,ga:2,pts:4},
+     {t:"Bosnia-Herzegovina",f:"🇧🇦",p:2,w:0,d:1,l:1,gf:2,ga:5,pts:1},
+     {t:"Qatar",       f:"🇶🇦",p:2,w:0,d:1,l:1,gf:1,ga:7,pts:1}],
+  C:[{t:"Brazil",      f:"🇧🇷",p:2,w:1,d:1,l:0,gf:4,ga:1,pts:4},
+     {t:"Morocco",     f:"🇲🇦",p:2,w:1,d:1,l:0,gf:2,ga:1,pts:4},
+     {t:"Scotland",    f:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",p:2,w:1,d:0,l:1,gf:1,ga:1,pts:3},
+     {t:"Haiti",       f:"🇭🇹",p:2,w:0,d:0,l:2,gf:0,ga:4,pts:0}],
+  D:[{t:"USA",         f:"🇺🇸",p:2,w:2,d:0,l:0,gf:6,ga:1,pts:6},
+     {t:"Australia",   f:"🇦🇺",p:2,w:1,d:0,l:1,gf:2,ga:1,pts:3},
+     {t:"Paraguay",    f:"🇵🇾",p:2,w:1,d:0,l:1,gf:2,ga:4,pts:3},
+     {t:"Turkey",      f:"🇹🇷",p:2,w:0,d:0,l:2,gf:0,ga:4,pts:0}],
+  E:[{t:"Germany",     f:"🇩🇪",p:2,w:2,d:0,l:0,gf:9,ga:2,pts:6},
+     {t:"Ivory Coast", f:"🇨🇮",p:2,w:1,d:0,l:1,gf:2,ga:3,pts:3},
+     {t:"Ecuador",     f:"🇪🇨",p:2,w:0,d:1,l:1,gf:0,ga:1,pts:1},
+     {t:"Curacao",     f:"🇨🇼",p:2,w:0,d:1,l:1,gf:1,ga:8,pts:1}],
+  F:[{t:"Netherlands", f:"🇳🇱",p:2,w:1,d:1,l:0,gf:7,ga:2,pts:4},
+     {t:"Japan",       f:"🇯🇵",p:2,w:1,d:1,l:0,gf:6,ga:2,pts:4},
+     {t:"Sweden",      f:"🇸🇪",p:2,w:1,d:0,l:1,gf:6,ga:6,pts:3},
+     {t:"Tunisia",     f:"🇹🇳",p:2,w:0,d:0,l:2,gf:1,ga:10,pts:0}],
+  G:[{t:"Egypt",       f:"🇪🇬",p:2,w:1,d:1,l:0,gf:4,ga:2,pts:4},
+     {t:"Iran",        f:"🇮🇷",p:2,w:0,d:2,l:0,gf:3,ga:3,pts:2},
+     {t:"Belgium",     f:"🇧🇪",p:2,w:0,d:2,l:0,gf:2,ga:2,pts:2},
+     {t:"New Zealand", f:"🇳🇿",p:2,w:0,d:1,l:1,gf:3,ga:5,pts:1}],
+  H:[{t:"Spain",       f:"🇪🇸",p:2,w:1,d:1,l:0,gf:4,ga:0,pts:4},
+     {t:"Uruguay",     f:"🇺🇾",p:2,w:0,d:2,l:0,gf:3,ga:3,pts:2},
+     {t:"Cabo Verde",  f:"🇨🇻",p:2,w:0,d:2,l:0,gf:2,ga:2,pts:2},
+     {t:"Saudi Arabia",f:"🇸🇦",p:2,w:0,d:1,l:1,gf:1,ga:5,pts:1}],
+  I:[{t:"France",      f:"🇫🇷",p:1,w:1,d:0,l:0,gf:3,ga:1,pts:3},
+     {t:"Norway",      f:"🇳🇴",p:1,w:1,d:0,l:0,gf:4,ga:1,pts:3},
+     {t:"Senegal",     f:"🇸🇳",p:1,w:0,d:0,l:1,gf:1,ga:3,pts:0},
+     {t:"Iraq",        f:"🇮🇶",p:1,w:0,d:0,l:1,gf:1,ga:4,pts:0}],
+  J:[{t:"Argentina",   f:"🇦🇷",p:1,w:1,d:0,l:0,gf:3,ga:0,pts:3},
+     {t:"Austria",     f:"🇦🇹",p:1,w:1,d:0,l:0,gf:3,ga:1,pts:3},
+     {t:"Algeria",     f:"🇩🇿",p:1,w:0,d:0,l:1,gf:0,ga:3,pts:0},
+     {t:"Jordan",      f:"🇯🇴",p:1,w:0,d:0,l:1,gf:1,ga:3,pts:0}],
+  K:[{t:"Colombia",    f:"🇨🇴",p:1,w:1,d:0,l:0,gf:3,ga:1,pts:3},
+     {t:"Portugal",    f:"🇵🇹",p:1,w:0,d:1,l:0,gf:1,ga:1,pts:1},
+     {t:"DR Congo",    f:"🇨🇩",p:1,w:0,d:1,l:0,gf:1,ga:1,pts:1},
+     {t:"Uzbekistan",  f:"🇺🇿",p:1,w:0,d:0,l:1,gf:1,ga:3,pts:0}],
+  L:[{t:"England",     f:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",p:1,w:1,d:0,l:0,gf:4,ga:2,pts:3},
+     {t:"Ghana",       f:"🇬🇭",p:1,w:1,d:0,l:0,gf:1,ga:0,pts:3},
+     {t:"Croatia",     f:"🇭🇷",p:1,w:0,d:0,l:1,gf:2,ga:4,pts:0},
+     {t:"Panama",      f:"🇵🇦",p:1,w:0,d:0,l:1,gf:0,ga:1,pts:0}],
+};
+
+// ── Statistical fallback predictor (no API needed) ────────────────
+function fallbackPred(home, away) {
+  const h = td(home), a = td(away);
+  const formPts = s => [...s].reduce((acc, c, i) => acc + (c==="W"?3:c==="D"?1:0) * (0.85**(4-i)), 0);
+  const rankEdge = Math.min(35, Math.max(-35, (a[1] - h[1]) * 0.45));
+  const formEdge = Math.min(12, Math.max(-12, (formPts(h[2]) - formPts(a[2])) * 4));
+  const wcEdge   = Math.min(8,  Math.max(-8,  (h[3]-h[4]) - (a[3]-a[4])));
+  const raw = 47 + rankEdge + formEdge + wcEdge;
+  const homeWin = Math.round(Math.min(75, Math.max(10, raw)));
+  const draw    = Math.round(Math.max(12, 28 - Math.abs(raw-47)*0.3));
+  const awayWin = Math.max(5, 100 - homeWin - draw);
+  const hG = Math.max(0, Math.round((h[3]/(Math.max(h[4],0.5)))*0.8));
+  const aG = Math.max(0, Math.round((a[3]/(Math.max(a[4],0.5)))*0.65));
+  return {
+    homeWinPct: homeWin, drawPct: draw, awayWinPct: awayWin,
+    predictedScore: `${hG}–${aG}`,
+    keyFactors: [
+      `${home} (FIFA #${h[1]}) vs ${away} (FIFA #${a[1]}) — ${h[1]<a[1]?home:away} ranked higher`,
+      `Recent form: ${home} ${h[2]} · ${away} ${a[2]}`,
+      `WC 2026 scoring: ${home} ${h[3]}GF/${h[4]}GA — ${away} ${a[3]}GF/${a[4]}GA`,
+    ],
+    confidence: Math.abs(h[1]-a[1]) > 40 ? "High" : "Medium",
+    analysis: `Statistical model favors ${homeWin>awayWin?home:awayWin>homeWin?away:"a draw"} based on FIFA rankings, form, and WC 2026 performance. Predicted score: ${hG}–${aG}.`,
+    isFallback: true,
+  };
+}
+
+// ── Sub-components ────────────────────────────────────────────────
+function FormDots({ form }) {
+  return (
+    <span style={{ display:"inline-flex", gap:2, alignItems:"center" }}>
+      {[...form].map((r,i) => (
+        <span key={i} style={{
+          display:"inline-block", width:7, height:7, borderRadius:"50%",
+          background: r==="W"?K.win : r==="D"?K.draw : K.loss,
+        }} title={r==="W"?"Win":r==="D"?"Draw":"Loss"} />
+      ))}
+    </span>
+  );
+}
+
+function ProbBar({ homeWin, draw, awayWin, homeShort, awayShort }) {
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10 }}>
+        <span style={{ fontSize:12, color:K.win, fontWeight:700, minWidth:36 }}>{homeWin}%</span>
+        <div style={{ flex:1, height:9, borderRadius:5, display:"flex", overflow:"hidden", background:"rgba(255,255,255,0.04)" }}>
+          <div style={{ width:`${homeWin}%`, background:K.win, transition:"width 0.9s ease" }} />
+          <div style={{ width:`${draw}%`, background:K.draw, transition:"width 0.9s ease" }} />
+          <div style={{ width:`${awayWin}%`, background:K.loss, transition:"width 0.9s ease" }} />
+        </div>
+        <span style={{ fontSize:12, color:K.loss, fontWeight:700, minWidth:36, textAlign:"right" }}>{awayWin}%</span>
+      </div>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:K.dim, marginTop:3, paddingLeft:44, paddingRight:44 }}>
+        <span>{homeShort} win</span>
+        <span>Draw {draw}%</span>
+        <span>{awayShort} win</span>
+      </div>
+    </div>
+  );
+}
+
+function MatchCard({ match, pred, loading, onPredict }) {
+  const h = td(match.home), a = td(match.away);
+  const hasPred = !!pred;
+  const confColor = pred?.confidence==="High" ? K.win : pred?.confidence==="Medium" ? K.gold : K.draw;
+
+  return (
+    <div style={{
+      background:K.card, border:`1px solid ${hasPred?K.green:K.border}`, borderRadius:12,
+      padding:"14px 16px", marginBottom:8, transition:"border-color 0.4s",
+    }}>
+      {/* Team row */}
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        {/* Home */}
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:22, lineHeight:1 }}>{h[0]}</div>
+          <div style={{ fontSize:14, fontWeight:600, color:K.text, marginTop:2 }}>{match.home}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
+            <span style={{ fontSize:10, color:K.dim, background:"rgba(255,255,255,0.06)", padding:"1px 5px", borderRadius:3 }}>#{h[1]}</span>
+            <FormDots form={h[2]} />
+          </div>
+        </div>
+        {/* Centre */}
+        <div style={{ textAlign:"center", minWidth:76 }}>
+          {hasPred
+            ? <div style={{ fontSize:18, fontWeight:700, color:K.gold }}>{pred.predictedScore}</div>
+            : <div style={{ fontSize:12, fontWeight:600, color:K.dim }}>{match.time}</div>
+          }
+          <div style={{ fontSize:10, color:K.dim, marginTop:2 }}>{hasPred?"predicted":"ET"}</div>
+          <div style={{ marginTop:6, display:"flex", justifyContent:"center" }}>
+            <span style={{ background:K.greenBg, color:K.greenFg, border:`1px solid rgba(0,166,80,0.25)`, borderRadius:4, fontSize:10, fontWeight:700, padding:"1px 7px" }}>
+              GRP {match.group}
+            </span>
+          </div>
+        </div>
+        {/* Away */}
+        <div style={{ flex:1, textAlign:"right" }}>
+          <div style={{ fontSize:22, lineHeight:1 }}>{a[0]}</div>
+          <div style={{ fontSize:14, fontWeight:600, color:K.text, marginTop:2 }}>{match.away}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, justifyContent:"flex-end" }}>
+            <FormDots form={a[2]} />
+            <span style={{ fontSize:10, color:K.dim, background:"rgba(255,255,255,0.06)", padding:"1px 5px", borderRadius:3 }}>#{a[1]}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Venue + action row */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:10, gap:8 }}>
+        <span style={{ fontSize:11, color:K.dim, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          📍 {match.venue}
+        </span>
+        {!hasPred && (
+          <button onClick={onPredict} disabled={!!loading} style={{
+            background: loading ? "rgba(0,166,80,0.18)" : K.green,
+            color: loading ? K.greenFg : "#fff",
+            border:"none", borderRadius:7, padding:"6px 16px",
+            fontSize:12, fontWeight:700, cursor: loading?"default":"pointer",
+            fontFamily:"inherit", display:"flex", alignItems:"center", gap:6,
+            minWidth:106, justifyContent:"center", whiteSpace:"nowrap",
+          }}>
+            {loading
+              ? <><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> Predicting…</>
+              : "🤖 Predict"}
+          </button>
+        )}
+        {hasPred && (
+          <span style={{ background:`${confColor}1a`, color:confColor, border:`1px solid ${confColor}40`, borderRadius:4, fontSize:10, fontWeight:700, padding:"2px 8px", whiteSpace:"nowrap" }}>
+            {pred.confidence} confidence
+          </span>
+        )}
+      </div>
+
+      {/* Prediction panel */}
+      {hasPred && (
+        <div style={{ marginTop:12, borderTop:`1px solid ${K.border}`, paddingTop:12 }}>
+          <ProbBar
+            homeWin={pred.homeWinPct} draw={pred.drawPct} awayWin={pred.awayWinPct}
+            homeShort={match.home.split(/[\s-]/)[0]} awayShort={match.away.split(/[\s-]/)[0]}
+          />
+          <div style={{ marginTop:10 }}>
+            {(pred.keyFactors||[]).map((f,i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:7, marginTop:5 }}>
+                <span style={{ color:i===0?K.win:i===1?K.gold:K.dim, fontSize:10, marginTop:2, flexShrink:0 }}>◆</span>
+                <span style={{ fontSize:12, color:K.dim, lineHeight:1.45 }}>{f}</span>
+              </div>
+            ))}
+          </div>
+          {pred.analysis && (
+            <div style={{ marginTop:8, fontSize:12, color:"rgba(216,232,245,0.55)", fontStyle:"italic", lineHeight:1.5 }}>
+              {pred.analysis}
+            </div>
+          )}
+          {pred.isFallback && (
+            <div style={{ marginTop:6, fontSize:10, color:K.dim }}>
+              ⚡ Statistical fallback model · Run inside Claude.ai for AI predictions
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StandCard({ group, rows }) {
+  const cols = ["#","Team","P","W","D","L","GF","GA","GD","Pts"];
+  return (
+    <div style={{ background:K.card, border:`1px solid ${K.border}`, borderRadius:12, overflow:"hidden" }}>
+      <div style={{ background:K.surf, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
+        <span style={{ background:K.green, color:"#fff", fontSize:11, fontWeight:800, borderRadius:4, padding:"2px 8px" }}>
+          GROUP {group}
+        </span>
+        <span style={{ fontSize:11, color:K.dim }}>{rows[0]?.t} leads · {rows[0]?.pts}pts</span>
+      </div>
+      <div style={{ overflowX:"auto" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:320 }}>
+          <thead>
+            <tr style={{ borderBottom:`1px solid ${K.border}` }}>
+              {cols.map(c => (
+                <th key={c} style={{ fontSize:10, color:K.dim, fontWeight:500, padding:"6px 7px", textAlign:c==="Team"?"left":"center", whiteSpace:"nowrap" }}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r,i) => {
+              const gd = r.gf - r.ga;
+              return (
+                <tr key={r.t} style={{ borderBottom: i<3?`1px solid ${K.border}`:"none", background:i<2?"rgba(0,166,80,0.05)":"transparent" }}>
+                  <td style={{ fontSize:11, color:K.dim, padding:"7px 7px", textAlign:"center" }}>{i+1}</td>
+                  <td style={{ fontSize:12, color:K.text, padding:"7px 7px", whiteSpace:"nowrap" }}>
+                    <span style={{ marginRight:5 }}>{r.f}</span>{r.t}
+                  </td>
+                  {[r.p,r.w,r.d,r.l,r.gf,r.ga].map((v,j)=>(
+                    <td key={j} style={{ fontSize:11, color:K.dim, padding:"7px 7px", textAlign:"center" }}>{v}</td>
+                  ))}
+                  <td style={{ fontSize:11, color:gd>0?K.win:gd<0?K.loss:K.dim, padding:"7px 7px", textAlign:"center", fontWeight:gd!==0?600:400 }}>
+                    {gd>0?"+":""}{gd}
+                  </td>
+                  <td style={{ fontSize:13, fontWeight:800, color:i<2?K.green:K.text, padding:"7px 7px", textAlign:"center" }}>{r.pts}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ padding:"5px 14px 7px", borderTop:`1px solid ${K.border}`, fontSize:10, color:K.dim }}>
+        🟢 Top 2 advance + best 8 third-place teams
+      </div>
+    </div>
+  );
+}
+
+function HistCard({ pred }) {
+  const { match, homeWinPct, awayWinPct, drawPct, predictedScore, confidence, timestamp } = pred;
+  const h = td(match.home), a = td(match.away);
+  const fav = homeWinPct>awayWinPct ? match.home : awayWinPct>homeWinPct ? match.away : "Draw";
+  const confColor = confidence==="High"?K.win:confidence==="Medium"?K.gold:K.draw;
+  return (
+    <div style={{ background:K.card, border:`1px solid ${K.border}`, borderRadius:10, padding:"12px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ fontSize:24 }}>🔮</div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight:600, color:K.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {h[0]} {match.home} vs {a[0]} {match.away}
+        </div>
+        <div style={{ fontSize:11, color:K.dim, marginTop:2 }}>Group {match.group} · {match.date} · {match.time}</div>
+        <div style={{ display:"flex", gap:8, marginTop:4 }}>
+          <span style={{ fontSize:10, color:K.win }}>{homeWinPct}%</span>
+          <span style={{ fontSize:10, color:K.draw }}>{drawPct}%</span>
+          <span style={{ fontSize:10, color:K.loss }}>{awayWinPct}%</span>
+        </div>
+      </div>
+      <div style={{ textAlign:"right", flexShrink:0 }}>
+        <div style={{ fontSize:16, fontWeight:800, color:K.gold }}>{predictedScore}</div>
+        <div style={{ fontSize:10, color:K.dim, marginTop:1 }}>Favors {fav.split(" ")[0]}</div>
+        <div style={{ fontSize:10, color:confColor, marginTop:2, fontWeight:600 }}>{confidence}</div>
+        <div style={{ fontSize:10, color:K.dim, marginTop:1 }}>{timestamp}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────
+export default function App() {
+  const [tab,     setTab]     = useState("upcoming");
+  const [preds,   setPreds]   = useState({});
+  const [loading, setLoading] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  async function predict(match) {
+    if (loading) return;
+    setLoading(match.id);
+    const h = td(match.home), a = td(match.away);
+
+    const prompt = `You are a FIFA World Cup 2026 data-science analyst. Predict this upcoming match with full statistical reasoning.
+
+MATCH: ${match.home} vs ${match.away} | Group ${match.group} | ${match.date} ${match.time}
+VENUE: ${match.venue}
+
+${match.home}: FIFA Rank #${h[1]} | Last 5: ${h[2]} | WC 2026: ${h[3]}GF / ${h[4]}GA
+${match.away}: FIFA Rank #${a[1]} | Last 5: ${a[2]} | WC 2026: ${a[3]}GF / ${a[4]}GA
+
+Consider: FIFA ranking differential, recent form, tournament momentum, defensive solidity, scoring potency, historical H2H, and tactical context.
+
+Respond with ONLY valid JSON — no markdown fences, no preamble:
+{
+  "homeWinPct": <integer>,
+  "drawPct": <integer>,
+  "awayWinPct": <integer>,
+  "predictedScore": "<h>–<a>",
+  "keyFactors": ["<factor1>","<factor2>","<factor3>"],
+  "confidence": "High" | "Medium" | "Low",
+  "analysis": "<2-sentence expert analysis>"
+}
+IMPORTANT: homeWinPct + drawPct + awayWinPct must equal exactly 100.`;
+
+    let result;
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 600,
+          messages: [{ role:"user", content:prompt }]
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const raw  = data.content?.find(b => b.type==="text")?.text || "";
+      const clean = raw.replace(/```json|```/g,"").trim();
+      result = JSON.parse(clean);
+      // Normalize to 100
+      const sum = (result.homeWinPct||0)+(result.drawPct||0)+(result.awayWinPct||0);
+      if (sum !== 100) result.awayWinPct = Math.max(0, 100 - result.homeWinPct - result.drawPct);
+    } catch {
+      result = fallbackPred(match.home, match.away);
+    }
+
+    const full = { ...result, match, timestamp: new Date().toLocaleTimeString() };
+    setPreds(p => ({ ...p, [match.id]: full }));
+    setHistory(h => [full, ...h].slice(0, 50));
+    setLoading(null);
+  }
+
+  const DATES    = [...new Set(MATCHES.map(m => m.date))];
+  const nPreds   = Object.keys(preds).length;
+  const tabBtn   = id => ({
+    background: tab===id ? K.green : "transparent",
+    color: tab===id ? "#fff" : K.dim,
+    border:"none", borderRadius:"8px 8px 0 0",
+    padding:"9px 18px", fontSize:13,
+    fontWeight: tab===id ? 700 : 400,
+    cursor:"pointer", fontFamily:"inherit",
+    transition:"all 0.15s",
+  });
+
+  return (
+    <div style={{ background:K.bg, minHeight:"100vh", color:K.text, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#1a2e4a;border-radius:2px}`}</style>
+
+      {/* ── Header ────────────────────────────────────────────── */}
+      <div style={{ background:K.surf, borderBottom:`1px solid ${K.border}`, position:"sticky", top:0, zIndex:20 }}>
+        <div style={{ maxWidth:920, margin:"0 auto", padding:"0 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", paddingTop:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:30 }}>🏆</span>
+              <div>
+                <div style={{ fontSize:17, fontWeight:800, color:K.gold, letterSpacing:"0.3px" }}>FIFA World Cup 2026™</div>
+                <div style={{ fontSize:12, color:K.dim, marginTop:1 }}>AI Predictor · {nPreds} prediction{nPreds!==1?"s":""} generated</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:20, padding:"5px 13px", fontSize:11, color:"#7dd3fc", whiteSpace:"nowrap" }}>
+              🤖 Powered by Claude
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:2, marginTop:10 }}>
+            <button style={tabBtn("upcoming")} onClick={()=>setTab("upcoming")}>📅 Matches ({MATCHES.length})</button>
+            <button style={tabBtn("standings")} onClick={()=>setTab("standings")}>🏟 Standings</button>
+            <button style={tabBtn("history")} onClick={()=>setTab("history")}>🔮 History ({history.length})</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main content ────────────────────────────────────────── */}
+      <div style={{ maxWidth:920, margin:"0 auto", padding:"16px" }}>
+
+        {/* ─ Upcoming Matches ─ */}
+        {tab==="upcoming" && (
+          <div>
+            {/* Model weights strip */}
+            <div style={{ background:K.surf, border:`1px solid ${K.border}`, borderRadius:10, padding:"10px 16px", marginBottom:14, display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
+              <span style={{ fontSize:10, color:K.dim, fontWeight:700, letterSpacing:"1px", textTransform:"uppercase" }}>Model weights:</span>
+              {[["Recent Form","30%",K.win],["FIFA Rank","25%",K.green],["WC Form","25%","#3b82f6"],["H2H","10%",K.gold],["Venue","10%",K.draw]].map(([l,v,c])=>(
+                <div key={l} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ fontSize:10, color:K.dim }}>{l}</span>
+                  <span style={{ fontSize:10, fontWeight:800, color:c, background:`${c}1a`, borderRadius:3, padding:"1px 5px" }}>{v}</span>
+                </div>
+              ))}
+              <div style={{ marginLeft:"auto", display:"flex", gap:8, fontSize:10, color:K.dim }}>
+                <span><span style={{ color:K.win }}>●</span> Win</span>
+                <span><span style={{ color:K.draw }}>●</span> Draw</span>
+                <span><span style={{ color:K.loss }}>●</span> Loss</span>
+              </div>
+            </div>
+
+            {DATES.map(date=>(
+              <div key={date}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, margin:"16px 0 8px" }}>
+                  <div style={{ height:1, width:18, background:K.gold, opacity:0.4 }} />
+                  <span style={{ fontSize:11, fontWeight:800, color:K.gold, letterSpacing:"1.5px", textTransform:"uppercase", whiteSpace:"nowrap" }}>
+                    {date==="Jun 22"?"📍 Today · ":date==="Jun 23"?"Tomorrow · ":""}{date}, 2026
+                  </span>
+                  <div style={{ flex:1, height:1, background:K.gold, opacity:0.1 }} />
+                  <span style={{ fontSize:10, color:K.dim }}>{MATCHES.filter(m=>m.date===date).length} matches</span>
+                </div>
+                {MATCHES.filter(m=>m.date===date).map(m=>(
+                  <MatchCard key={m.id} match={m} pred={preds[m.id]} loading={loading===m.id} onPredict={()=>predict(m)} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ─ Group Standings ─ */}
+        {tab==="standings" && (
+          <div>
+            <div style={{ fontSize:12, color:K.dim, marginBottom:14 }}>
+              After Matchday 2 (June 21, 2026) · <span style={{ color:K.gold }}>48 teams · 12 groups</span> · Top 2 + 8 best 3rd-place teams → Round of 32
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(310px, 1fr))", gap:12 }}>
+              {Object.entries(ST).map(([g,rows])=>(
+                <StandCard key={g} group={g} rows={rows} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─ Predictions History ─ */}
+        {tab==="history" && (
+          <div>
+            {history.length===0 ? (
+              <div style={{ textAlign:"center", padding:"72px 0", color:K.dim }}>
+                <div style={{ fontSize:52, marginBottom:16 }}>🔮</div>
+                <div style={{ fontSize:16, color:K.text, marginBottom:8 }}>No predictions yet</div>
+                <div style={{ fontSize:13 }}>Go to Matches and hit Predict on any upcoming game</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize:12, color:K.dim, marginBottom:14 }}>
+                  <span style={{ color:K.gold }}>{history.length} prediction{history.length!==1?"s":""}</span> this session
+                </div>
+                {history.map((p,i)=><HistCard key={i} pred={p} />)}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
