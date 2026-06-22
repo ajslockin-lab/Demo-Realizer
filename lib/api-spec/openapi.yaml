@@ -25,6 +25,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /lineup:
+    post:
+      operationId: getLineup
+      tags: [predict]
+      summary: Predict starting XI and formation for both teams before official announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LineupInput"
+      responses:
+        "200":
+          description: Predicted lineups for both teams
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineupPrediction"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /predict:
     post:
       operationId: predictMatch
@@ -71,6 +96,59 @@ components:
       properties:
         error:
           type: string
+
+    LineupInput:
+      type: object
+      required: [home, away, group, date]
+      properties:
+        home:
+          type: string
+        away:
+          type: string
+        group:
+          type: string
+        date:
+          type: string
+
+    LineupPlayer:
+      type: object
+      required: [name, position, number, isStar]
+      properties:
+        name:
+          type: string
+        position:
+          type: string
+        number:
+          type: integer
+        isStar:
+          type: boolean
+
+    TeamLineup:
+      type: object
+      required: [formation, xi, tactics, keyThreat]
+      properties:
+        formation:
+          type: string
+        xi:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineupPlayer"
+        tactics:
+          type: string
+        keyThreat:
+          type: string
+        injuryAlert:
+          type: string
+          nullable: true
+
+    LineupPrediction:
+      type: object
+      required: [home, away]
+      properties:
+        home:
+          $ref: "#/components/schemas/TeamLineup"
+        away:
+          $ref: "#/components/schemas/TeamLineup"
 
     MatchInput:
       type: object

@@ -22,6 +22,8 @@ import type {
 import type {
   ApiError,
   HealthStatus,
+  LineupInput,
+  LineupPrediction,
   MatchInput,
   Prediction
 } from './api.schemas';
@@ -114,6 +116,77 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getGetLineupUrl = () => {
+
+
+
+
+  return `/api/lineup`
+}
+
+/**
+ * @summary Predict starting XI and formation for both teams before official announcement
+ */
+export const getLineup = async (lineupInput: LineupInput, options?: RequestInit): Promise<LineupPrediction> => {
+
+  return customFetch<LineupPrediction>(getGetLineupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      lineupInput,)
+  }
+);}
+
+
+
+
+export const getGetLineupMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getLineup>>, TError,{data: BodyType<LineupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getLineup>>, TError,{data: BodyType<LineupInput>}, TContext> => {
+
+const mutationKey = ['getLineup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getLineup>>, {data: BodyType<LineupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getLineup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetLineupMutationResult = NonNullable<Awaited<ReturnType<typeof getLineup>>>
+    export type GetLineupMutationBody = BodyType<LineupInput>
+    export type GetLineupMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Predict starting XI and formation for both teams before official announcement
+ */
+export const useGetLineup = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getLineup>>, TError,{data: BodyType<LineupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof getLineup>>,
+        TError,
+        {data: BodyType<LineupInput>},
+        TContext
+      > => {
+      return useMutation(getGetLineupMutationOptions(options));
+    }
 
 export const getPredictMatchUrl = () => {
 

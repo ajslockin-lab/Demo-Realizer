@@ -17,6 +17,44 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Predict starting XI and formation for both teams before official announcement
+ */
+export const GetLineupBody = zod.object({
+  "home": zod.string(),
+  "away": zod.string(),
+  "group": zod.string(),
+  "date": zod.string()
+})
+
+export const GetLineupResponse = zod.object({
+  "home": zod.object({
+  "formation": zod.string(),
+  "xi": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string(),
+  "number": zod.number(),
+  "isStar": zod.boolean()
+})),
+  "tactics": zod.string(),
+  "keyThreat": zod.string(),
+  "injuryAlert": zod.string().nullish()
+}),
+  "away": zod.object({
+  "formation": zod.string(),
+  "xi": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string(),
+  "number": zod.number(),
+  "isStar": zod.boolean()
+})),
+  "tactics": zod.string(),
+  "keyThreat": zod.string(),
+  "injuryAlert": zod.string().nullish()
+})
+})
+
+
+/**
  * @summary Predict a match outcome using Poisson regression + AI
  */
 export const PredictMatchBody = zod.object({

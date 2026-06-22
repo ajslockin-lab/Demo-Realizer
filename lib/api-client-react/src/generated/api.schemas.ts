@@ -13,6 +13,33 @@ export interface ApiError {
   error: string;
 }
 
+export interface LineupInput {
+  home: string;
+  away: string;
+  group: string;
+  date: string;
+}
+
+export interface LineupPlayer {
+  name: string;
+  position: string;
+  number: number;
+  isStar: boolean;
+}
+
+export interface TeamLineup {
+  formation: string;
+  xi: LineupPlayer[];
+  tactics: string;
+  keyThreat: string;
+  injuryAlert?: string | null;
+}
+
+export interface LineupPrediction {
+  home: TeamLineup;
+  away: TeamLineup;
+}
+
 export interface MatchInput {
   id: string;
   home: string;

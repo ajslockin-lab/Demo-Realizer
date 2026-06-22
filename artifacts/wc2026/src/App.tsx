@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { usePredictMatch } from "@workspace/api-client-react";
-import type { Prediction } from "@workspace/api-client-react/src/generated/api.schemas";
+import { usePredictMatch, useGetLineup } from "@workspace/api-client-react";
+import type { Prediction, LineupPrediction } from "@workspace/api-client-react/src/generated/api.schemas";
 import { teams, matches, standings, DAYS, Match } from "./data";
 import { cn } from "@/lib/utils";
 import {
   Trophy, History, Brain, ChevronRight, BarChart3, Cpu, Target, Zap,
-  TrendingUp, Shield, Activity, Calendar
+  TrendingUp, Shield, Activity, Calendar, Users, AlertTriangle, Star
 } from "lucide-react";
 
 export default function App() {
@@ -28,7 +28,7 @@ export default function App() {
             </div>
             <span className="font-black text-base tracking-tight uppercase">WC26 AI Predictor</span>
             <span className="hidden sm:inline text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-mono ml-1">
-              Poisson ML
+              Poisson ML + AI Lineups
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
@@ -197,8 +197,7 @@ export default function App() {
                   const winner = item.prediction.homeWinPct > item.prediction.awayWinPct
                     ? item.match.home
                     : item.prediction.awayWinPct > item.prediction.homeWinPct
-                    ? item.match.away
-                    : "Draw";
+                    ? item.match.away : "Draw";
                   return (
                     <div key={i} className="rounded-xl border border-border/50 bg-card/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-4">
@@ -217,22 +216,18 @@ export default function App() {
                         <div>
                           <div className="font-bold text-sm">{item.match.home} vs {item.match.away}</div>
                           <div className="text-xs text-muted-foreground">
-                            xG: {item.prediction.homeXG} — {item.prediction.awayXG} · Winner: {winner}
+                            xG: {item.prediction.homeXG} — {item.prediction.awayXG} · Predicted winner: {winner}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded font-mono font-bold border",
-                          item.prediction.confidence === "High"
-                            ? "bg-green-500/10 text-green-400 border-green-500/30"
-                            : item.prediction.confidence === "Medium"
-                            ? "bg-primary/10 text-primary border-primary/30"
-                            : "bg-muted text-muted-foreground border-border/50"
-                        )}>
-                          {item.prediction.confidence}
-                        </span>
-                      </div>
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded font-mono font-bold border flex-shrink-0",
+                        item.prediction.confidence === "High" ? "bg-green-500/10 text-green-400 border-green-500/30"
+                          : item.prediction.confidence === "Medium" ? "bg-primary/10 text-primary border-primary/30"
+                          : "bg-muted text-muted-foreground border-border/50"
+                      )}>
+                        {item.prediction.confidence}
+                      </span>
                     </div>
                   );
                 })}
@@ -249,7 +244,20 @@ export default function App() {
 
 function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: (p: Prediction) => void }) {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [showLineup, setShowLineup] = useState(false);
+  const [lineup, setLineup] = useState<LineupPrediction | null>(null);
   const predict = usePredictMatch();
+  const lineupMutation = useGetLineup();
+
+  // Auto-fetch lineup on mount
+  useEffect(() => {
+    lineupMutation.mutate(
+      { data: { home: match.home, away: match.away, group: match.group, date: match.date } },
+      { onSuccess: (data) => setLineup(data) }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.id]);
+
   const hm = teams[match.home];
   const am = teams[match.away];
 
@@ -265,9 +273,7 @@ function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: 
       {/* Match header */}
       <div className="px-5 pt-5 pb-4">
         <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-5">
-          <span className="font-mono bg-muted/60 px-2 py-0.5 rounded">
-            GROUP {match.group}
-          </span>
+          <span className="font-mono bg-muted/60 px-2 py-0.5 rounded">GROUP {match.group}</span>
           <span>{match.time}</span>
           <span className="text-right max-w-[200px] truncate">{match.venue}</span>
         </div>
@@ -289,7 +295,7 @@ function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: 
                   : prediction.confidence === "Medium" ? "bg-primary/10 text-primary border-primary/30"
                   : "bg-muted/60 text-muted-foreground border-border/50"
               )}>
-                {prediction.confidence} confidence
+                {prediction.confidence} conf.
               </span>
             )}
           </div>
@@ -297,7 +303,41 @@ function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: 
         </div>
       </div>
 
-      {/* Prediction panel or button */}
+      {/* Lineup toggle */}
+      <div className="px-5 pb-3">
+        <button
+          onClick={() => setShowLineup(v => !v)}
+          className={cn(
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors",
+            showLineup
+              ? "bg-primary/10 border-primary/30 text-primary"
+              : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:border-border/70"
+          )}
+        >
+          <div className="flex items-center gap-1.5">
+            <Users size={12} />
+            <span>Predicted Lineup &amp; Formation</span>
+            {lineupMutation.isPending && (
+              <span className="text-[10px] font-mono text-muted-foreground ml-1 animate-pulse">Fetching AI intel…</span>
+            )}
+            {lineup && !lineupMutation.isPending && (
+              <span className="text-[10px] bg-green-500/15 text-green-400 border border-green-500/25 px-1.5 rounded font-mono">READY</span>
+            )}
+          </div>
+          <span className={cn("transition-transform duration-200", showLineup ? "rotate-90" : "")}><ChevronRight size={12} /></span>
+        </button>
+
+        {showLineup && lineup && (
+          <LineupPanel lineup={lineup} homeName={match.home} awayName={match.away} />
+        )}
+        {showLineup && lineupMutation.isPending && (
+          <div className="mt-2 p-4 rounded-lg border border-border/30 bg-muted/20 text-center text-xs text-muted-foreground animate-pulse">
+            AI is predicting starting lineups based on squad data and tournament context…
+          </div>
+        )}
+      </div>
+
+      {/* Predict panel or button */}
       {prediction ? (
         <PredictionPanel match={match} prediction={prediction} />
       ) : (
@@ -317,7 +357,7 @@ function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: 
               <>
                 <div className="absolute inset-0 bg-primary/20 animate-pulse" />
                 <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                <span>Running Poisson Model + AI...</span>
+                <span>Running Poisson Model + AI…</span>
               </>
             ) : (
               <>
@@ -327,8 +367,79 @@ function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: 
               </>
             )}
           </button>
+          {predict.isError && (
+            <p className="text-xs text-destructive text-center mt-2">Prediction failed — please try again.</p>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Lineup Panel ───────────────────────────────────────────── */
+
+function LineupPanel({ lineup, homeName, awayName }: { lineup: LineupPrediction; homeName: string; awayName: string }) {
+  const positionOrder = ["GK","CB","LB","RB","LWB","RWB","CDM","CM","CAM","SS","LW","RW","ST"];
+  const sortPlayers = (xi: typeof lineup.home.xi) =>
+    [...xi].sort((a, b) => positionOrder.indexOf(a.position) - positionOrder.indexOf(b.position));
+
+  return (
+    <div className="mt-2 rounded-xl border border-border/30 bg-muted/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="grid grid-cols-2 divide-x divide-border/30">
+        {([
+          { team: lineup.home, name: homeName },
+          { team: lineup.away, name: awayName },
+        ] as const).map(({ team, name }) => (
+          <div key={name} className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-foreground">{name}</span>
+              <span className="text-[10px] font-mono bg-primary/15 text-primary px-1.5 py-0.5 rounded border border-primary/25">
+                {team.formation}
+              </span>
+            </div>
+
+            {/* Players */}
+            <div className="space-y-1 mb-2">
+              {sortPlayers(team.xi).map((p, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-muted-foreground w-5 text-right flex-shrink-0">{p.number}</span>
+                  <span className={cn(
+                    "text-[10px] font-mono px-1 rounded w-8 text-center flex-shrink-0",
+                    p.position === "GK" ? "bg-yellow-500/20 text-yellow-400" :
+                    ["CB","LB","RB","LWB","RWB"].includes(p.position) ? "bg-blue-500/15 text-blue-400" :
+                    ["CDM","CM","CAM"].includes(p.position) ? "bg-green-500/15 text-green-400" :
+                    "bg-red-500/15 text-red-400"
+                  )}>
+                    {p.position}
+                  </span>
+                  <span className={cn("text-xs truncate", p.isStar ? "font-bold text-primary" : "text-foreground/80")}>
+                    {p.name}
+                  </span>
+                  {p.isStar && <Star size={9} className="text-primary flex-shrink-0 fill-primary" />}
+                </div>
+              ))}
+            </div>
+
+            {/* Tactics & key threat */}
+            <div className="border-t border-border/25 pt-2 space-y-1">
+              <p className="text-[10px] text-muted-foreground leading-snug">{team.tactics}</p>
+              <div className="flex items-center gap-1">
+                <Zap size={9} className="text-primary flex-shrink-0" />
+                <span className="text-[10px] text-primary font-medium">Key threat: {team.keyThreat}</span>
+              </div>
+              {team.injuryAlert && (
+                <div className="flex items-center gap-1">
+                  <AlertTriangle size={9} className="text-amber-400 flex-shrink-0" />
+                  <span className="text-[10px] text-amber-400">{team.injuryAlert}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="px-3 py-1.5 border-t border-border/25 bg-muted/20 text-[10px] text-muted-foreground font-mono text-center">
+        AI predicted lineup · Official XI announced ~1hr before kickoff
+      </div>
     </div>
   );
 }
@@ -344,11 +455,8 @@ function TeamBlock({ name, meta, align }: { name: string; meta?: { flag: string;
       <span className="text-[10px] text-muted-foreground font-mono">FIFA #{meta.rank}</span>
       <div className={cn("flex gap-0.5", align === "right" ? "flex-row-reverse" : "flex-row")}>
         {meta.form.split("").map((r, i) => (
-          <div
-            key={i}
-            title={r === "W" ? "Win" : r === "D" ? "Draw" : "Loss"}
-            className={cn(
-              "w-2 h-2 rounded-full",
+          <div key={i} title={r === "W" ? "Win" : r === "D" ? "Draw" : "Loss"}
+            className={cn("w-2 h-2 rounded-full",
               r === "W" ? "bg-green-400" : r === "D" ? "bg-muted-foreground/60" : "bg-destructive/70"
             )}
           />
@@ -366,11 +474,10 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
 
   return (
     <div className="border-t border-border/40 animate-in fade-in slide-in-from-bottom-3 duration-500">
-
       {/* Win probability bar */}
       <div className="px-5 py-4 border-b border-border/30">
         <div className="flex justify-between text-xs font-mono mb-1.5">
-          <span className={cn("font-bold", prediction.homeWinPct > prediction.awayWinPct ? "text-primary" : "text-muted-foreground")}>
+          <span className={cn("font-bold", prediction.homeWinPct > prediction.awayWinPct ? "text-green-400" : "text-muted-foreground")}>
             {match.home} {prediction.homeWinPct}%
           </span>
           <span className="text-muted-foreground">Draw {prediction.drawPct}%</span>
@@ -379,18 +486,9 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
           </span>
         </div>
         <div className="h-2.5 flex rounded-full overflow-hidden">
-          <div
-            style={{ width: `${prediction.homeWinPct}%` }}
-            className="bg-green-500/80 transition-all duration-1000"
-          />
-          <div
-            style={{ width: `${prediction.drawPct}%` }}
-            className="bg-muted-foreground/40 transition-all duration-1000"
-          />
-          <div
-            style={{ width: `${prediction.awayWinPct}%` }}
-            className="bg-primary transition-all duration-1000"
-          />
+          <div style={{ width: `${prediction.homeWinPct}%` }} className="bg-green-500/80 transition-all duration-1000" />
+          <div style={{ width: `${prediction.drawPct}%` }} className="bg-muted-foreground/40 transition-all duration-1000" />
+          <div style={{ width: `${prediction.awayWinPct}%` }} className="bg-primary transition-all duration-1000" />
         </div>
       </div>
 
@@ -399,18 +497,18 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
         <div className="px-5 py-4 border-b border-border/30">
           <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
             <Cpu size={12} />
-            Poisson Model Features
+            Poisson Regression Features
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+          <div className="grid grid-cols-1 gap-3 text-xs">
             <MetricRow icon={<Target size={11} />} label="Expected Goals (xG)" homeVal={f.homeXG} awayVal={f.awayXG} format={v => v.toFixed(2)} higherIsBetter />
             <MetricRow icon={<Zap size={11} />} label="Attack Strength" homeVal={f.homeAttackStrength} awayVal={f.awayAttackStrength} format={v => v.toFixed(2)} higherIsBetter />
-            <MetricRow icon={<Shield size={11} />} label="Defense Strength" homeVal={f.homeDefenseStrength} awayVal={f.awayDefenseStrength} format={v => v.toFixed(2)} higherIsBetter={false} />
+            <MetricRow icon={<Shield size={11} />} label="Defense Weakness" homeVal={f.homeDefenseStrength} awayVal={f.awayDefenseStrength} format={v => v.toFixed(2)} higherIsBetter={false} />
             <MetricRow icon={<TrendingUp size={11} />} label="Form Factor" homeVal={f.homeFormFactor} awayVal={f.awayFormFactor} format={v => v.toFixed(2)} higherIsBetter />
           </div>
           <div className="mt-3 text-[10px] text-muted-foreground font-mono border border-border/30 rounded-lg px-3 py-2 bg-muted/20">
-            λ_home = AttackH × DefenseA × 1.4625 × FormH × RankFactor({f.rankFactor}) = <span className="text-primary font-bold">{f.homeXG}</span>
+            λ_home = {f.homeAttackStrength} × {f.awayDefenseStrength} × 1.4625 × {f.homeFormFactor} × {f.rankFactor} = <span className="text-primary font-bold">{f.homeXG}</span>
             &nbsp;|&nbsp;
-            λ_away = AttackA × DefenseH × 1.4625 × FormA / RankFactor = <span className="text-primary font-bold">{f.awayXG}</span>
+            λ_away = {f.awayAttackStrength} × {f.homeDefenseStrength} × 1.4625 × {f.awayFormFactor} / {f.rankFactor} = <span className="text-primary font-bold">{f.awayXG}</span>
           </div>
         </div>
       )}
@@ -420,20 +518,18 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
         <div className="px-5 py-4 border-b border-border/30">
           <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
             <BarChart3 size={12} />
-            Scoreline Probabilities (Top 9)
+            Scoreline Probability Distribution
           </div>
           <div className="grid grid-cols-3 gap-2">
             {prediction.scorelines.slice(0, 9).map((s, i) => {
               const intensity = s.probability / maxProb;
               const isTop = i === 0;
               return (
-                <div
-                  key={i}
-                  style={{ backgroundColor: isTop ? undefined : `rgba(255, 215, 0, ${intensity * 0.18})` }}
+                <div key={i}
+                  style={{ backgroundColor: isTop ? undefined : `rgba(255,215,0,${intensity * 0.18})` }}
                   className={cn(
                     "rounded-lg p-2.5 text-center border transition-all",
-                    isTop
-                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,215,0,0.3)]"
+                    isTop ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,215,0,0.3)]"
                       : "border-primary/20 text-foreground"
                   )}
                 >
@@ -448,12 +544,12 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
             })}
           </div>
           <p className="text-[10px] text-muted-foreground mt-2 font-mono">
-            P(h,a) = Poisson(λ_home, h) × Poisson(λ_away, a) · Training data: WC 2026 MD1–2 (40 games, 117 goals)
+            P(h,a) = Poisson(λ_h,h) × Poisson(λ_a,a) · WC 2026 MD1–2 training data (40 games, 117 goals)
           </p>
         </div>
       )}
 
-      {/* Goalscorer predictions */}
+      {/* Goalscorers */}
       {prediction.goalscorers && (
         <div className="px-5 py-4 border-b border-border/30">
           <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
@@ -461,28 +557,20 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
             AI Goalscorer Predictions
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{match.home}</div>
-              <div className="space-y-2">
-                {(prediction.goalscorers.home ?? []).map((scorer, i) => (
-                  <ScorerRow key={i} scorer={scorer} />
-                ))}
-                {(prediction.goalscorers.home ?? []).length === 0 && (
-                  <span className="text-xs text-muted-foreground">No data</span>
-                )}
+            {[
+              { side: prediction.goalscorers.home, label: match.home },
+              { side: prediction.goalscorers.away, label: match.away },
+            ].map(({ side, label }) => (
+              <div key={label}>
+                <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{label}</div>
+                <div className="space-y-2">
+                  {(side ?? []).map((scorer, i) => (
+                    <ScorerRow key={i} scorer={scorer} />
+                  ))}
+                  {(side ?? []).length === 0 && <span className="text-xs text-muted-foreground">No data</span>}
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{match.away}</div>
-              <div className="space-y-2">
-                {(prediction.goalscorers.away ?? []).map((scorer, i) => (
-                  <ScorerRow key={i} scorer={scorer} />
-                ))}
-                {(prediction.goalscorers.away ?? []).length === 0 && (
-                  <span className="text-xs text-muted-foreground">No data</span>
-                )}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
@@ -495,10 +583,10 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
             Key Factors
           </div>
           <ul className="space-y-1.5">
-            {prediction.keyFactors.map((f, i) => (
+            {prediction.keyFactors.map((factor, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                 <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
-                {f}
+                {factor}
               </li>
             ))}
           </ul>
@@ -519,15 +607,9 @@ function PredictionPanel({ match, prediction }: { match: Match; prediction: Pred
 
 /* ── Metric Row ─────────────────────────────────────────────── */
 
-function MetricRow({
-  icon, label, homeVal, awayVal, format, higherIsBetter
-}: {
-  icon: React.ReactNode;
-  label: string;
-  homeVal: number;
-  awayVal: number;
-  format: (v: number) => string;
-  higherIsBetter: boolean;
+function MetricRow({ icon, label, homeVal, awayVal, format, higherIsBetter }: {
+  icon: React.ReactNode; label: string; homeVal: number; awayVal: number;
+  format: (v: number) => string; higherIsBetter: boolean;
 }) {
   const homeWins = higherIsBetter ? homeVal > awayVal : homeVal < awayVal;
   const awayWins = higherIsBetter ? awayVal > homeVal : awayVal < homeVal;
@@ -535,27 +617,23 @@ function MetricRow({
   const homeWidth = Math.round((homeVal / total) * 100);
 
   return (
-    <div className="col-span-2">
+    <div>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1 text-muted-foreground">
           {icon}
           <span className="text-[10px] uppercase tracking-wider">{label}</span>
         </div>
         <div className="flex items-center gap-3 font-mono text-xs">
-          <span className={cn("font-bold", homeWins ? "text-primary" : "text-muted-foreground")}>{format(homeVal)}</span>
+          <span className={cn("font-bold", homeWins ? "text-green-400" : "text-muted-foreground")}>{format(homeVal)}</span>
           <span className="text-muted-foreground/40 text-[10px]">vs</span>
           <span className={cn("font-bold", awayWins ? "text-primary" : "text-muted-foreground")}>{format(awayVal)}</span>
         </div>
       </div>
       <div className="h-1.5 flex rounded-full overflow-hidden bg-muted/40">
-        <div
-          style={{ width: `${homeWidth}%` }}
-          className={cn("transition-all duration-700", homeWins ? "bg-green-500/70" : "bg-muted-foreground/40")}
-        />
-        <div
-          style={{ width: `${100 - homeWidth}%` }}
-          className={cn("transition-all duration-700", awayWins ? "bg-primary/80" : "bg-muted-foreground/30")}
-        />
+        <div style={{ width: `${homeWidth}%` }}
+          className={cn("transition-all duration-700", homeWins ? "bg-green-500/70" : "bg-muted-foreground/40")} />
+        <div style={{ width: `${100 - homeWidth}%` }}
+          className={cn("transition-all duration-700", awayWins ? "bg-primary/80" : "bg-muted-foreground/30")} />
       </div>
     </div>
   );
@@ -569,17 +647,13 @@ function ScorerRow({ scorer }: { scorer: { name: string; probability: number; go
       <div className="flex-1 min-w-0">
         <div className="text-xs font-bold truncate">{scorer.name}</div>
         <div className="h-1 mt-0.5 bg-muted/40 rounded-full overflow-hidden">
-          <div
-            style={{ width: `${Math.min(scorer.probability, 100)}%` }}
-            className="h-full bg-primary/70 rounded-full transition-all duration-700"
-          />
+          <div style={{ width: `${Math.min(scorer.probability, 100)}%` }}
+            className="h-full bg-primary/70 rounded-full transition-all duration-700" />
         </div>
       </div>
       <div className="flex-shrink-0 text-right">
         <div className="text-[11px] font-mono text-primary font-bold">{scorer.probability}%</div>
-        <div className="text-[10px] text-muted-foreground font-mono">
-          {scorer.goals === 2 ? "brace" : "1 goal"}
-        </div>
+        <div className="text-[10px] text-muted-foreground font-mono">{scorer.goals === 2 ? "brace" : "1 goal"}</div>
       </div>
     </div>
   );
