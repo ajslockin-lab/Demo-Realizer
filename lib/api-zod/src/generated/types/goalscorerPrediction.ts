@@ -5,13 +5,9 @@
  * FIFA World Cup 2026 AI Predictor API
  * OpenAPI spec version: 0.2.0
  */
+import type { ScorerEntry } from './scorerEntry';
 
-export interface MatchInput {
-  id: string;
-  home: string;
-  away: string;
-  group: string;
-  venue: string;
-  date: string;
-  time: string;
+export interface GoalscorerPrediction {
+  home: ScorerEntry[];
+  away: ScorerEntry[];
 }

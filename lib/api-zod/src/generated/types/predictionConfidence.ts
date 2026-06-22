@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * FIFA World Cup 2026 AI Predictor API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 
 export type PredictionConfidence = typeof PredictionConfidence[keyof typeof PredictionConfidence];

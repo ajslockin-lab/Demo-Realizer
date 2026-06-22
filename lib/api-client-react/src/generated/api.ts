@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * FIFA World Cup 2026 AI Predictor API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import {
   useMutation,
@@ -47,7 +47,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -125,7 +124,7 @@ export const getPredictMatchUrl = () => {
 }
 
 /**
- * @summary Predict a match outcome using AI
+ * @summary Predict a match outcome using Poisson regression + AI
  */
 export const predictMatch = async (matchInput: MatchInput, options?: RequestInit): Promise<Prediction> => {
 
@@ -174,7 +173,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PredictMatchMutationError = ErrorType<ApiError>
 
     /**
- * @summary Predict a match outcome using AI
+ * @summary Predict a match outcome using Poisson regression + AI
  */
 export const usePredictMatch = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof predictMatch>>, TError,{data: BodyType<MatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

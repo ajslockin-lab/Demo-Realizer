@@ -3,13 +3,12 @@
  * Do not edit manually.
  * Api
  * FIFA World Cup 2026 AI Predictor API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -18,7 +17,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Predict a match outcome using AI
+ * @summary Predict a match outcome using Poisson regression + AI
  */
 export const PredictMatchBody = zod.object({
   "id": zod.string(),
@@ -27,15 +26,7 @@ export const PredictMatchBody = zod.object({
   "group": zod.string(),
   "venue": zod.string(),
   "date": zod.string(),
-  "time": zod.string(),
-  "homeRank": zod.number(),
-  "awayRank": zod.number(),
-  "homeForm": zod.string(),
-  "awayForm": zod.string(),
-  "homeGF": zod.number(),
-  "homeGA": zod.number(),
-  "awayGF": zod.number(),
-  "awayGA": zod.number()
+  "time": zod.string()
 })
 
 export const PredictMatchResponse = zod.object({
@@ -43,9 +34,39 @@ export const PredictMatchResponse = zod.object({
   "drawPct": zod.number(),
   "awayWinPct": zod.number(),
   "predictedScore": zod.string(),
+  "homeXG": zod.number(),
+  "awayXG": zod.number(),
+  "scorelines": zod.array(zod.object({
+  "home": zod.number(),
+  "away": zod.number(),
+  "probability": zod.number()
+})),
+  "goalscorers": zod.object({
+  "home": zod.array(zod.object({
+  "name": zod.string(),
+  "probability": zod.number(),
+  "goals": zod.number()
+})),
+  "away": zod.array(zod.object({
+  "name": zod.string(),
+  "probability": zod.number(),
+  "goals": zod.number()
+}))
+}),
   "keyFactors": zod.array(zod.string()),
   "confidence": zod.enum(['High', 'Medium', 'Low']),
-  "analysis": zod.string()
+  "analysis": zod.string(),
+  "modelFeatures": zod.object({
+  "homeAttackStrength": zod.number(),
+  "homeDefenseStrength": zod.number(),
+  "awayAttackStrength": zod.number(),
+  "awayDefenseStrength": zod.number(),
+  "homeFormFactor": zod.number(),
+  "awayFormFactor": zod.number(),
+  "rankFactor": zod.number(),
+  "homeXG": zod.number(),
+  "awayXG": zod.number()
+})
 })
 
 

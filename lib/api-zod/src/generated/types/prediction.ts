@@ -3,16 +3,24 @@
  * Do not edit manually.
  * Api
  * FIFA World Cup 2026 AI Predictor API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
+import type { GoalscorerPrediction } from './goalscorerPrediction';
+import type { ModelFeatures } from './modelFeatures';
 import type { PredictionConfidence } from './predictionConfidence';
+import type { ScorelineProbability } from './scorelineProbability';
 
 export interface Prediction {
   homeWinPct: number;
   drawPct: number;
   awayWinPct: number;
   predictedScore: string;
+  homeXG: number;
+  awayXG: number;
+  scorelines: ScorelineProbability[];
+  goalscorers: GoalscorerPrediction;
   keyFactors: string[];
   confidence: PredictionConfidence;
   analysis: string;
+  modelFeatures: ModelFeatures;
 }

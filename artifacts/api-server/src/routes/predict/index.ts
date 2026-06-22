@@ -1,36 +1,12 @@
 import { Router } from "express";
 import { PredictMatchBody } from "@workspace/api-zod";
+import { runPoissonModel, TEAM_STATS } from "../../lib/ml-model.js";
+import { getPlayersForTeam } from "../../lib/player-data.js";
 
 const router = Router();
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
-
-function fallbackPrediction(home: string, away: string, homeRank: number, awayRank: number, homeForm: string, awayForm: string, homeGF: number, homeGA: number, awayGF: number, awayGA: number) {
-  const formPts = (s: string) => [...s].reduce((acc, c, i) => acc + (c === "W" ? 3 : c === "D" ? 1 : 0) * (0.85 ** (4 - i)), 0);
-  const rankEdge = Math.min(35, Math.max(-35, (awayRank - homeRank) * 0.45));
-  const formEdge = Math.min(12, Math.max(-12, (formPts(homeForm) - formPts(awayForm)) * 4));
-  const wcEdge = Math.min(8, Math.max(-8, (homeGF - homeGA) - (awayGF - awayGA)));
-  const raw = 47 + rankEdge + formEdge + wcEdge;
-  const homeWinPct = Math.round(Math.min(75, Math.max(10, raw)));
-  const drawPct = Math.round(Math.max(12, 28 - Math.abs(raw - 47) * 0.3));
-  const awayWinPct = Math.max(5, 100 - homeWinPct - drawPct);
-  const hG = Math.max(0, Math.round((homeGF / Math.max(homeGA, 0.5)) * 0.8));
-  const aG = Math.max(0, Math.round((awayGF / Math.max(awayGA, 0.5)) * 0.65));
-  return {
-    homeWinPct,
-    drawPct,
-    awayWinPct,
-    predictedScore: `${hG}–${aG}`,
-    keyFactors: [
-      `${home} (FIFA #${homeRank}) vs ${away} (FIFA #${awayRank}) — ${homeRank < awayRank ? home : away} ranked higher`,
-      `Recent form: ${home} ${homeForm} · ${away} ${awayForm}`,
-      `WC 2026 stats: ${home} ${homeGF}GF/${homeGA}GA — ${away} ${awayGF}GF/${awayGA}GA`,
-    ],
-    confidence: Math.abs(homeRank - awayRank) > 40 ? "High" as const : "Medium" as const,
-    analysis: `Statistical model favors ${homeWinPct > awayWinPct ? home : awayWinPct > homeWinPct ? away : "a draw"} based on FIFA rankings, form, and WC 2026 performance. Predicted score: ${hG}–${aG}.`,
-  };
-}
 
 router.post("/predict", async (req, res) => {
   const parsed = PredictMatchBody.safeParse(req.body);
@@ -39,37 +15,73 @@ router.post("/predict", async (req, res) => {
     return;
   }
 
-  const { home, away, group, venue, date, time, homeRank, awayRank, homeForm, awayForm, homeGF, homeGA, awayGF, awayGA } = parsed.data;
+  const { id, home, away, group, venue, date, time } = parsed.data;
+  void id;
+
+  const mlResult = runPoissonModel(home, away);
+  const homeStats = TEAM_STATS[home];
+  const awayStats = TEAM_STATS[away];
+  const homePlayers = getPlayersForTeam(home);
+  const awayPlayers = getPlayersForTeam(away);
 
   const apiKey = process.env.GROQ_API_KEY;
+
   if (!apiKey) {
-    req.log.warn("GROQ_API_KEY not set, using fallback");
-    const fallback = fallbackPrediction(home, away, homeRank, awayRank, homeForm, awayForm, homeGF, homeGA, awayGF, awayGA);
-    res.json(fallback);
+    req.log.warn("GROQ_API_KEY not set — using ML model only, no goalscorer AI");
+    res.json(buildFallbackResponse(mlResult, home, away, homePlayers, awayPlayers));
     return;
   }
 
-  const prompt = `You are a FIFA World Cup 2026 data-science analyst. Predict this upcoming match with full statistical reasoning.
+  const homePlayerStr = homePlayers.map(p =>
+    `${p.name} (${p.position}, ${p.scoringRate.toFixed(2)} G/game, ${p.wcGoals} WC26 goals, ${p.club})`
+  ).join("\n  ");
+
+  const awayPlayerStr = awayPlayers.map(p =>
+    `${p.name} (${p.position}, ${p.scoringRate.toFixed(2)} G/game, ${p.wcGoals} WC26 goals, ${p.club})`
+  ).join("\n  ");
+
+  const prompt = `You are an elite FIFA World Cup 2026 data-science analyst. A Poisson regression model has already been run. Your job is to:
+1. Predict the 2 most likely goalscorers for each team (with estimated probability 0-100)
+2. Predict how many goals each scorer will score (usually 1, occasionally 2)
+3. Write a rich 3-sentence expert tactical analysis
+4. Assign a confidence level
 
 MATCH: ${home} vs ${away} | Group ${group} | ${date} ${time}
 VENUE: ${venue}
 
-${home}: FIFA Rank #${homeRank} | Last 5: ${homeForm} | WC 2026: ${homeGF}GF / ${homeGA}GA
-${away}: FIFA Rank #${awayRank} | Last 5: ${awayForm} | WC 2026: ${awayGF}GF / ${awayGA}GA
+POISSON MODEL OUTPUT:
+- ${home} xG: ${mlResult.homeXG} | ${away} xG: ${mlResult.awayXG}
+- Win %: ${home} ${mlResult.homeWinPct}% | Draw ${mlResult.drawPct}% | ${away} ${mlResult.awayWinPct}%
+- Most likely score: ${mlResult.predictedScore}
+- Attack strength: ${home} ${mlResult.features.homeAttackStrength} | ${away} ${mlResult.features.awayAttackStrength}
+- Defense strength: ${home} ${mlResult.features.homeDefenseStrength} | ${away} ${mlResult.features.awayDefenseStrength}
 
-Consider: FIFA ranking differential, recent form, tournament momentum, defensive solidity, scoring potency, historical H2H, and tactical context.
+WC 2026 TOURNAMENT DATA:
+${home}: ${homeStats ? `${homeStats.gamesPlayed} games, ${homeStats.goalsFor}GF/${homeStats.goalsAgainst}GA, form ${homeStats.form}` : "no WC data yet"}
+${away}: ${awayStats ? `${awayStats.gamesPlayed} games, ${awayStats.goalsFor}GF/${awayStats.goalsAgainst}GA, form ${awayStats.form}` : "no WC data yet"}
 
-Respond with ONLY valid JSON — no markdown fences, no preamble:
+${home} KEY PLAYERS:
+  ${homePlayerStr || "Data unavailable"}
+
+${away} KEY PLAYERS:
+  ${awayPlayerStr || "Data unavailable"}
+
+Respond ONLY with valid JSON — no markdown, no preamble:
 {
-  "homeWinPct": <integer>,
-  "drawPct": <integer>,
-  "awayWinPct": <integer>,
-  "predictedScore": "<h>–<a>",
+  "goalscorers": {
+    "home": [
+      {"name": "<player name>", "probability": <0-100>, "goals": <1 or 2>},
+      {"name": "<player name>", "probability": <0-100>, "goals": <1>}
+    ],
+    "away": [
+      {"name": "<player name>", "probability": <0-100>, "goals": <1 or 2>},
+      {"name": "<player name>", "probability": <0-100>, "goals": <1>}
+    ]
+  },
   "keyFactors": ["<factor1>","<factor2>","<factor3>"],
   "confidence": "High" | "Medium" | "Low",
-  "analysis": "<2-sentence expert analysis>"
-}
-IMPORTANT: homeWinPct + drawPct + awayWinPct must equal exactly 100.`;
+  "analysis": "<3-sentence expert tactical analysis referencing xG, attacking threats, defensive shape, and tournament context>"
+}`;
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -80,40 +92,67 @@ IMPORTANT: homeWinPct + drawPct + awayWinPct must equal exactly 100.`;
       },
       body: JSON.stringify({
         model: GROQ_MODEL,
-        max_tokens: 600,
-        temperature: 0.4,
+        max_tokens: 900,
+        temperature: 0.35,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Groq API error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Groq error: ${response.status}`);
 
     const groqData = await response.json() as { choices: Array<{ message: { content: string } }> };
     const raw = groqData.choices?.[0]?.message?.content ?? "";
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const result = JSON.parse(clean) as {
-      homeWinPct: number;
-      drawPct: number;
-      awayWinPct: number;
-      predictedScore: string;
+    // Extract the JSON object robustly — find first { and last }
+    const jsonStart = raw.indexOf("{");
+    const jsonEnd = raw.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON object in Groq response");
+    const jsonStr = raw.slice(jsonStart, jsonEnd + 1);
+    const groq = JSON.parse(jsonStr) as {
+      goalscorers: { home: { name: string; probability: number; goals: number }[]; away: { name: string; probability: number; goals: number }[] };
       keyFactors: string[];
       confidence: "High" | "Medium" | "Low";
       analysis: string;
     };
 
-    const sum = (result.homeWinPct || 0) + (result.drawPct || 0) + (result.awayWinPct || 0);
-    if (sum !== 100) {
-      result.awayWinPct = Math.max(0, 100 - result.homeWinPct - result.drawPct);
-    }
-
-    res.json(result);
+    res.json({
+      ...mlResult,
+      goalscorers: groq.goalscorers,
+      keyFactors: groq.keyFactors,
+      confidence: groq.confidence,
+      analysis: groq.analysis,
+      modelFeatures: mlResult.features,
+    });
   } catch (err) {
-    req.log.error({ err }, "Groq prediction failed, using fallback");
-    const fallback = fallbackPrediction(home, away, homeRank, awayRank, homeForm, awayForm, homeGF, homeGA, awayGF, awayGA);
-    res.json(fallback);
+    req.log.error({ err }, "Groq call failed — using ML fallback");
+    res.json(buildFallbackResponse(mlResult, home, away, homePlayers, awayPlayers));
   }
 });
+
+function buildFallbackResponse(
+  mlResult: ReturnType<typeof runPoissonModel>,
+  home: string,
+  away: string,
+  homePlayers: ReturnType<typeof getPlayersForTeam>,
+  awayPlayers: ReturnType<typeof getPlayersForTeam>,
+) {
+  const topHome = homePlayers.sort((a, b) => b.scoringRate - a.scoringRate).slice(0, 2);
+  const topAway = awayPlayers.sort((a, b) => b.scoringRate - a.scoringRate).slice(0, 2);
+
+  return {
+    ...mlResult,
+    goalscorers: {
+      home: topHome.map(p => ({ name: p.name, probability: Math.round(p.scoringRate * 65), goals: 1 })),
+      away: topAway.map(p => ({ name: p.name, probability: Math.round(p.scoringRate * 55), goals: 1 })),
+    },
+    keyFactors: [
+      `Poisson xG: ${home} ${mlResult.homeXG} vs ${away} ${mlResult.awayXG}`,
+      `Attack strengths: ${home} ${mlResult.features.homeAttackStrength} | ${away} ${mlResult.features.awayAttackStrength}`,
+      `Form factors: ${home} ${mlResult.features.homeFormFactor} | ${away} ${mlResult.features.awayFormFactor}`,
+    ],
+    confidence: Math.abs(mlResult.homeWinPct - mlResult.awayWinPct) > 25 ? "High" as const : "Medium" as const,
+    analysis: `Statistical Poisson regression gives ${home} an xG of ${mlResult.homeXG} and ${away} an xG of ${mlResult.awayXG}, yielding a predicted score of ${mlResult.predictedScore}. The model weights WC 2026 tournament goals, FIFA ranking prior, and recent form across a 5-game window. Most likely outcome by probability: ${mlResult.homeWinPct > mlResult.awayWinPct ? home + " win" : mlResult.awayWinPct > mlResult.homeWinPct ? away + " win" : "draw"} at ${Math.max(mlResult.homeWinPct, mlResult.awayWinPct, mlResult.drawPct)}%.`,
+    modelFeatures: mlResult.features,
+  };
+}
 
 export default router;

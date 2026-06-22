@@ -1,287 +1,585 @@
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { usePredictMatch } from "@workspace/api-client-react";
-import { teams, matches, standings, Match, TeamData } from "./data";
-import { Activity, Trophy, History, Brain, ChevronRight, BarChart3, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { Prediction } from "@workspace/api-client-react/src/generated/api.schemas";
+import { teams, matches, standings, DAYS, Match } from "./data";
+import { cn } from "@/lib/utils";
+import {
+  Trophy, History, Brain, ChevronRight, BarChart3, Cpu, Target, Zap,
+  TrendingUp, Shield, Activity, Calendar
+} from "lucide-react";
 
 export default function App() {
-  const [history, setHistory] = useState<{ match: Match; prediction: Prediction; timestamp: number }[]>([]);
+  const [tab, setTab] = useState<"matches" | "standings" | "history">("matches");
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]);
+  const [history, setHistory] = useState<{ match: Match; prediction: Prediction; ts: number }[]>([]);
 
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-  }, []);
+  useEffect(() => { document.documentElement.classList.add("dark"); }, []);
+
+  const dayMatches = matches.filter(m => m.date === selectedDay);
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col font-sans selection:bg-primary selection:text-primary-foreground">
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col font-sans">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold">
-              <Trophy size={18} />
+            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
+              <Trophy size={14} className="text-primary-foreground" />
             </div>
-            <h1 className="font-bold text-lg tracking-tight uppercase">WC26 Predictor</h1>
+            <span className="font-black text-base tracking-tight uppercase">WC26 AI Predictor</span>
+            <span className="hidden sm:inline text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-mono ml-1">
+              Poisson ML
+            </span>
           </div>
-          <div className="text-sm font-mono text-muted-foreground flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
             SYSTEM ONLINE
           </div>
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
-        <Tabs defaultValue="matches" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto mb-8 bg-card border border-border/50">
-            <TabsTrigger value="matches" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Activity className="w-4 h-4 mr-2" />
-              Matches
-            </TabsTrigger>
-            <TabsTrigger value="standings" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Standings
-            </TabsTrigger>
-            <TabsTrigger value="history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <History className="w-4 h-4 mr-2" />
-              History
-            </TabsTrigger>
-          </TabsList>
+      {/* Nav */}
+      <div className="border-b border-border/30 bg-background/80">
+        <div className="max-w-6xl mx-auto px-4 flex gap-0">
+          {[
+            { id: "matches", icon: Activity, label: "Matches" },
+            { id: "standings", icon: BarChart3, label: "Standings" },
+            { id: "history", icon: History, label: "History" },
+          ].map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id as typeof tab)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                tab === id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon size={14} />
+              {label}
+              {id === "history" && history.length > 0 && (
+                <span className="bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {history.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <TabsContent value="matches" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {Object.entries(
-              matches.reduce((acc, match) => {
-                if (!acc[match.date]) acc[match.date] = [];
-                acc[match.date].push(match);
-                return acc;
-              }, {} as Record<string, Match[]>)
-            ).map(([date, dateMatches]) => (
-              <div key={date} className="space-y-4">
-                <h2 className="text-xl font-bold tracking-tight border-b border-border/50 pb-2 text-primary">{date}</h2>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {dateMatches.map((match) => (
-                    <MatchCard key={match.id} match={match} onPrediction={(p) => setHistory(prev => [{match, prediction: p, timestamp: Date.now()}, ...prev])} />
-                  ))}
-                </div>
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+
+        {/* MATCHES TAB */}
+        {tab === "matches" && (
+          <div>
+            {/* Day selector */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground uppercase tracking-widest font-medium">
+                <Calendar size={12} />
+                Select matchday
               </div>
-            ))}
-          </TabsContent>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map(day => (
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-150",
+                      selectedDay === day
+                        ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,215,0,0.3)]"
+                        : "bg-card border-border/50 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    )}
+                  >
+                    {day}
+                    <span className="ml-1.5 text-[10px] opacity-60">
+                      ({matches.filter(m => m.date === day).length})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <TabsContent value="standings" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(standings).map(([group, teams]) => (
-                <Card key={group} className="border-border/50 bg-card/50 overflow-hidden">
-                  <div className="bg-muted px-4 py-2 border-b border-border/50">
-                    <h3 className="font-bold text-sm">Group {group}</h3>
+            {/* Day header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-px flex-1 bg-border/40" />
+              <h2 className="text-sm font-mono text-primary font-bold tracking-widest uppercase">
+                {selectedDay} — {dayMatches.length} Matches
+              </h2>
+              <div className="h-px flex-1 bg-border/40" />
+            </div>
+
+            {/* Matches */}
+            <div className="space-y-5">
+              {dayMatches.map(match => (
+                <MatchDetailCard
+                  key={match.id}
+                  match={match}
+                  onPrediction={p => setHistory(prev => [{ match, prediction: p, ts: Date.now() }, ...prev])}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* STANDINGS TAB */}
+        {tab === "standings" && (
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-px flex-1 bg-border/40" />
+              <h2 className="text-sm font-mono text-primary font-bold tracking-widest uppercase">Group Standings — MD2</h2>
+              <div className="h-px flex-1 bg-border/40" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(standings).map(([group, rows]) => (
+                <div key={group} className="rounded-xl border border-border/50 bg-card/50 overflow-hidden">
+                  <div className="bg-muted/60 px-4 py-2 border-b border-border/40 flex items-center gap-2">
+                    <span className="text-xs font-mono text-primary font-bold">GROUP {group}</span>
                   </div>
-                  <CardContent className="p-0">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
-                          <th className="text-left py-2 pl-4 font-medium">Team</th>
-                          <th className="text-right py-2 pr-4 font-medium">Pts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teams.map((t, idx) => (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/30">
+                        <th className="text-left py-1.5 pl-4 font-medium">Team</th>
+                        <th className="text-right py-1.5 pr-4 font-medium">PTS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((t, i) => {
+                        const meta = teams[t.team];
+                        return (
                           <tr key={t.team} className={cn(
                             "border-b border-border/20 last:border-0",
-                            idx < 2 ? "bg-accent/5" : ""
+                            i < 2 ? "bg-primary/5" : ""
                           )}>
                             <td className="py-2 pl-4 flex items-center gap-2">
-                              <span className={cn(
-                                "w-4 text-xs font-mono text-muted-foreground",
-                                idx < 2 ? "text-accent font-bold" : ""
-                              )}>{idx + 1}</span>
+                              <span className={cn("text-xs font-mono w-4", i < 2 ? "text-primary font-bold" : "text-muted-foreground")}>
+                                {i + 1}
+                              </span>
+                              {meta && <span>{meta.flag}</span>}
                               <span className="font-medium">{t.team}</span>
-                              {t.text && <span className="text-[10px] text-muted-foreground ml-1">({t.text})</span>}
+                              {i < 2 && (
+                                <span className="text-[9px] bg-primary/20 text-primary px-1 rounded font-mono">ADV</span>
+                              )}
                             </td>
                             <td className="text-right py-2 pr-4 font-mono font-bold">{t.pts}</td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </CardContent>
-                </Card>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ))}
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="history" className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-4">
+        {/* HISTORY TAB */}
+        {tab === "history" && (
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-px flex-1 bg-border/40" />
+              <h2 className="text-sm font-mono text-primary font-bold tracking-widest uppercase">Prediction History</h2>
+              <div className="h-px flex-1 bg-border/40" />
+            </div>
             {history.length === 0 ? (
-              <div className="text-center py-16 border border-dashed border-border/50 rounded-xl bg-card/20">
-                <Brain className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-                <h3 className="text-lg font-medium text-foreground">No predictions yet</h3>
-                <p className="text-sm text-muted-foreground mt-1">Run some simulations from the Matches tab.</p>
+              <div className="text-center py-20 border border-dashed border-border/40 rounded-2xl bg-card/20">
+                <Brain className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-30" />
+                <p className="text-muted-foreground">No predictions run yet. Go to Matches and run the ML model.</p>
               </div>
             ) : (
-              history.map((item, idx) => (
-                <Card key={idx} className="bg-card/50 border-border/50">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">{new Date(item.timestamp).toLocaleTimeString()}</div>
-                      <div className="font-bold flex items-center gap-2">
-                        <span>{item.match.home}</span>
-                        <span className="text-primary">{item.prediction.predictedScore}</span>
-                        <span>{item.match.away}</span>
+              <div className="space-y-3">
+                {history.map((item, i) => {
+                  const hm = teams[item.match.home];
+                  const am = teams[item.match.away];
+                  const winner = item.prediction.homeWinPct > item.prediction.awayWinPct
+                    ? item.match.home
+                    : item.prediction.awayWinPct > item.prediction.homeWinPct
+                    ? item.match.away
+                    : "Draw";
+                  return (
+                    <div key={i} className="rounded-xl border border-border/50 bg-card/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-4">
+                        <div className="text-xs text-muted-foreground font-mono">
+                          {new Date(item.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          <div className="text-[10px]">{item.match.date}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{hm?.flag}</span>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">vs</div>
+                            <div className="text-lg font-black font-mono text-primary">{item.prediction.predictedScore}</div>
+                          </div>
+                          <span className="text-xl">{am?.flag}</span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm">{item.match.home} vs {item.match.away}</div>
+                          <div className="text-xs text-muted-foreground">
+                            xG: {item.prediction.homeXG} — {item.prediction.awayXG} · Winner: {winner}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded font-mono font-bold border",
+                          item.prediction.confidence === "High"
+                            ? "bg-green-500/10 text-green-400 border-green-500/30"
+                            : item.prediction.confidence === "Medium"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-muted text-muted-foreground border-border/50"
+                        )}>
+                          {item.prediction.confidence}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                        {item.prediction.confidence} Confidence
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                  );
+                })}
+              </div>
             )}
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-function MatchCard({ match, onPrediction }: { match: Match, onPrediction: (p: Prediction) => void }) {
+/* ── Match Detail Card ──────────────────────────────────────── */
+
+function MatchDetailCard({ match, onPrediction }: { match: Match; onPrediction: (p: Prediction) => void }) {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const predict = usePredictMatch();
+  const hm = teams[match.home];
+  const am = teams[match.away];
 
   const handlePredict = () => {
-    const homeData = teams[match.home];
-    const awayData = teams[match.away];
-
-    predict.mutate({
-      data: {
-        id: match.id,
-        home: match.home,
-        away: match.away,
-        group: match.group,
-        venue: match.venue,
-        date: match.date,
-        time: match.time,
-        homeRank: homeData[1],
-        awayRank: awayData[1],
-        homeForm: homeData[2],
-        awayForm: awayData[2],
-        homeGF: homeData[3],
-        homeGA: homeData[4],
-        awayGF: awayData[3],
-        awayGA: awayData[4]
-      }
-    }, {
-      onSuccess: (res) => {
-        setPrediction(res);
-        onPrediction(res);
-      }
-    });
+    predict.mutate(
+      { data: { id: match.id, home: match.home, away: match.away, group: match.group, venue: match.venue, date: match.date, time: match.time } },
+      { onSuccess: (res) => { setPrediction(res); onPrediction(res); } }
+    );
   };
 
-  const homeData = teams[match.home];
-  const awayData = teams[match.away];
-
   return (
-    <Card className="border-border/50 bg-card overflow-hidden group">
-      <div className="p-4 flex flex-col justify-between h-full">
-        <div>
-          <div className="flex justify-between items-center text-xs text-muted-foreground mb-4 pb-2 border-b border-border/30">
-            <span>Group {match.group} • {match.time}</span>
-            <span className="truncate max-w-[150px]">{match.venue}</span>
-          </div>
-
-          <div className="space-y-4 mb-6">
-            <TeamRow name={match.home} data={homeData} />
-            <TeamRow name={match.away} data={awayData} />
-          </div>
+    <div className="rounded-2xl border border-border/50 bg-card/60 overflow-hidden">
+      {/* Match header */}
+      <div className="px-5 pt-5 pb-4">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-5">
+          <span className="font-mono bg-muted/60 px-2 py-0.5 rounded">
+            GROUP {match.group}
+          </span>
+          <span>{match.time}</span>
+          <span className="text-right max-w-[200px] truncate">{match.venue}</span>
         </div>
 
-        {prediction ? (
-          <div className="mt-4 pt-4 border-t border-border/30 space-y-4 animate-in fade-in slide-in-from-bottom-2">
-            <div className="text-center pb-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Predicted Score</div>
-              <div className="text-3xl font-bold font-mono text-primary drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]">
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+          <TeamBlock name={match.home} meta={hm} align="left" />
+          <div className="flex flex-col items-center gap-1">
+            {prediction ? (
+              <div className="text-3xl font-black font-mono text-primary drop-shadow-[0_0_10px_rgba(255,215,0,0.4)] leading-none">
                 {prediction.predictedScore}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-mono">
-                <span className={prediction.homeWinPct > prediction.awayWinPct ? "text-accent" : ""}>{prediction.homeWinPct}%</span>
-                <span className="text-muted-foreground">DRAW {prediction.drawPct}%</span>
-                <span className={prediction.awayWinPct > prediction.homeWinPct ? "text-accent" : ""}>{prediction.awayWinPct}%</span>
-              </div>
-              <div className="h-2 flex rounded-full overflow-hidden opacity-90">
-                <div style={{ width: `${prediction.homeWinPct}%` }} className="bg-white/80 transition-all duration-1000" />
-                <div style={{ width: `${prediction.drawPct}%` }} className="bg-muted transition-all duration-1000" />
-                <div style={{ width: `${prediction.awayWinPct}%` }} className="bg-primary transition-all duration-1000" />
-              </div>
-            </div>
-
-            <div className="bg-black/20 p-3 rounded-lg text-sm border border-border/50">
-              <div className="flex items-center gap-2 mb-2 font-medium text-primary">
-                <Brain className="w-4 h-4" />
-                <span>AI Analysis</span>
-              </div>
-              <p className="text-muted-foreground leading-relaxed">{prediction.analysis}</p>
-            </div>
+            ) : (
+              <div className="text-xl font-bold text-muted-foreground/40 font-mono">vs</div>
+            )}
+            {prediction && (
+              <span className={cn(
+                "text-[10px] font-mono px-2 py-0.5 rounded border font-bold",
+                prediction.confidence === "High" ? "bg-green-500/10 text-green-400 border-green-500/30"
+                  : prediction.confidence === "Medium" ? "bg-primary/10 text-primary border-primary/30"
+                  : "bg-muted/60 text-muted-foreground border-border/50"
+              )}>
+                {prediction.confidence} confidence
+              </span>
+            )}
           </div>
-        ) : (
-          <Button 
-            className="w-full font-bold uppercase tracking-wider relative overflow-hidden" 
+          <TeamBlock name={match.away} meta={am} align="right" />
+        </div>
+      </div>
+
+      {/* Prediction panel or button */}
+      {prediction ? (
+        <PredictionPanel match={match} prediction={prediction} />
+      ) : (
+        <div className="px-5 pb-5">
+          <button
             onClick={handlePredict}
             disabled={predict.isPending}
+            className={cn(
+              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-widest transition-all duration-200",
+              "bg-primary text-primary-foreground",
+              "hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] hover:scale-[1.01]",
+              "disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100",
+              "flex items-center justify-center gap-2 relative overflow-hidden group"
+            )}
           >
             {predict.isPending ? (
               <>
                 <div className="absolute inset-0 bg-primary/20 animate-pulse" />
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                  Simulating...
-                </div>
+                <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                <span>Running Poisson Model + AI...</span>
               </>
             ) : (
               <>
-                Run Prediction
-                <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                <Cpu size={15} />
+                Run ML Prediction
+                <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
               </>
             )}
-          </Button>
-        )}
-      </div>
-    </Card>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
-function TeamRow({ name, data }: { name: string; data: TeamData }) {
-  if (!data) return null;
-  const [flag, rank, form] = data;
+/* ── Team Block ─────────────────────────────────────────────── */
+
+function TeamBlock({ name, meta, align }: { name: string; meta?: { flag: string; rank: number; form: string }; align: "left" | "right" }) {
+  if (!meta) return <div className="font-bold">{name}</div>;
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <span className="text-2xl drop-shadow-md">{flag}</span>
-        <div>
-          <div className="font-bold">{name}</div>
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <span>FIFA Rank: #{rank}</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex gap-1">
-        {form.split('').map((result, i) => (
-          <div 
-            key={i} 
+    <div className={cn("flex flex-col gap-1", align === "right" ? "items-end" : "items-start")}>
+      <span className="text-3xl">{meta.flag}</span>
+      <span className="font-black text-sm leading-tight">{name}</span>
+      <span className="text-[10px] text-muted-foreground font-mono">FIFA #{meta.rank}</span>
+      <div className={cn("flex gap-0.5", align === "right" ? "flex-row-reverse" : "flex-row")}>
+        {meta.form.split("").map((r, i) => (
+          <div
+            key={i}
+            title={r === "W" ? "Win" : r === "D" ? "Draw" : "Loss"}
             className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              result === 'W' ? "bg-accent" : result === 'D' ? "bg-muted-foreground" : "bg-destructive"
+              "w-2 h-2 rounded-full",
+              r === "W" ? "bg-green-400" : r === "D" ? "bg-muted-foreground/60" : "bg-destructive/70"
             )}
-            title={result}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Prediction Panel ───────────────────────────────────────── */
+
+function PredictionPanel({ match, prediction }: { match: Match; prediction: Prediction }) {
+  const f = prediction.modelFeatures;
+  const maxProb = Math.max(...(prediction.scorelines?.map(s => s.probability) ?? [1]));
+
+  return (
+    <div className="border-t border-border/40 animate-in fade-in slide-in-from-bottom-3 duration-500">
+
+      {/* Win probability bar */}
+      <div className="px-5 py-4 border-b border-border/30">
+        <div className="flex justify-between text-xs font-mono mb-1.5">
+          <span className={cn("font-bold", prediction.homeWinPct > prediction.awayWinPct ? "text-primary" : "text-muted-foreground")}>
+            {match.home} {prediction.homeWinPct}%
+          </span>
+          <span className="text-muted-foreground">Draw {prediction.drawPct}%</span>
+          <span className={cn("font-bold", prediction.awayWinPct > prediction.homeWinPct ? "text-primary" : "text-muted-foreground")}>
+            {prediction.awayWinPct}% {match.away}
+          </span>
+        </div>
+        <div className="h-2.5 flex rounded-full overflow-hidden">
+          <div
+            style={{ width: `${prediction.homeWinPct}%` }}
+            className="bg-green-500/80 transition-all duration-1000"
+          />
+          <div
+            style={{ width: `${prediction.drawPct}%` }}
+            className="bg-muted-foreground/40 transition-all duration-1000"
+          />
+          <div
+            style={{ width: `${prediction.awayWinPct}%` }}
+            className="bg-primary transition-all duration-1000"
+          />
+        </div>
+      </div>
+
+      {/* Model features */}
+      {f && (
+        <div className="px-5 py-4 border-b border-border/30">
+          <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            <Cpu size={12} />
+            Poisson Model Features
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+            <MetricRow icon={<Target size={11} />} label="Expected Goals (xG)" homeVal={f.homeXG} awayVal={f.awayXG} format={v => v.toFixed(2)} higherIsBetter />
+            <MetricRow icon={<Zap size={11} />} label="Attack Strength" homeVal={f.homeAttackStrength} awayVal={f.awayAttackStrength} format={v => v.toFixed(2)} higherIsBetter />
+            <MetricRow icon={<Shield size={11} />} label="Defense Strength" homeVal={f.homeDefenseStrength} awayVal={f.awayDefenseStrength} format={v => v.toFixed(2)} higherIsBetter={false} />
+            <MetricRow icon={<TrendingUp size={11} />} label="Form Factor" homeVal={f.homeFormFactor} awayVal={f.awayFormFactor} format={v => v.toFixed(2)} higherIsBetter />
+          </div>
+          <div className="mt-3 text-[10px] text-muted-foreground font-mono border border-border/30 rounded-lg px-3 py-2 bg-muted/20">
+            λ_home = AttackH × DefenseA × 1.4625 × FormH × RankFactor({f.rankFactor}) = <span className="text-primary font-bold">{f.homeXG}</span>
+            &nbsp;|&nbsp;
+            λ_away = AttackA × DefenseH × 1.4625 × FormA / RankFactor = <span className="text-primary font-bold">{f.awayXG}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Scoreline probability grid */}
+      {prediction.scorelines && prediction.scorelines.length > 0 && (
+        <div className="px-5 py-4 border-b border-border/30">
+          <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            <BarChart3 size={12} />
+            Scoreline Probabilities (Top 9)
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {prediction.scorelines.slice(0, 9).map((s, i) => {
+              const intensity = s.probability / maxProb;
+              const isTop = i === 0;
+              return (
+                <div
+                  key={i}
+                  style={{ backgroundColor: isTop ? undefined : `rgba(255, 215, 0, ${intensity * 0.18})` }}
+                  className={cn(
+                    "rounded-lg p-2.5 text-center border transition-all",
+                    isTop
+                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,215,0,0.3)]"
+                      : "border-primary/20 text-foreground"
+                  )}
+                >
+                  <div className={cn("text-lg font-black font-mono leading-none", isTop ? "" : "text-primary")}>
+                    {s.home}–{s.away}
+                  </div>
+                  <div className={cn("text-[11px] font-mono mt-0.5", isTop ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    {s.probability.toFixed(1)}%
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 font-mono">
+            P(h,a) = Poisson(λ_home, h) × Poisson(λ_away, a) · Training data: WC 2026 MD1–2 (40 games, 117 goals)
+          </p>
+        </div>
+      )}
+
+      {/* Goalscorer predictions */}
+      {prediction.goalscorers && (
+        <div className="px-5 py-4 border-b border-border/30">
+          <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            <Brain size={12} />
+            AI Goalscorer Predictions
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{match.home}</div>
+              <div className="space-y-2">
+                {(prediction.goalscorers.home ?? []).map((scorer, i) => (
+                  <ScorerRow key={i} scorer={scorer} />
+                ))}
+                {(prediction.goalscorers.home ?? []).length === 0 && (
+                  <span className="text-xs text-muted-foreground">No data</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">{match.away}</div>
+              <div className="space-y-2">
+                {(prediction.goalscorers.away ?? []).map((scorer, i) => (
+                  <ScorerRow key={i} scorer={scorer} />
+                ))}
+                {(prediction.goalscorers.away ?? []).length === 0 && (
+                  <span className="text-xs text-muted-foreground">No data</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Key factors */}
+      {prediction.keyFactors && prediction.keyFactors.length > 0 && (
+        <div className="px-5 py-4 border-b border-border/30">
+          <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            <Zap size={12} />
+            Key Factors
+          </div>
+          <ul className="space-y-1.5">
+            {prediction.keyFactors.map((f, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* AI analysis */}
+      <div className="px-5 py-4">
+        <div className="flex items-center gap-2 mb-3 text-xs font-mono text-muted-foreground uppercase tracking-widest">
+          <Brain size={12} />
+          AI Tactical Analysis
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">{prediction.analysis}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Metric Row ─────────────────────────────────────────────── */
+
+function MetricRow({
+  icon, label, homeVal, awayVal, format, higherIsBetter
+}: {
+  icon: React.ReactNode;
+  label: string;
+  homeVal: number;
+  awayVal: number;
+  format: (v: number) => string;
+  higherIsBetter: boolean;
+}) {
+  const homeWins = higherIsBetter ? homeVal > awayVal : homeVal < awayVal;
+  const awayWins = higherIsBetter ? awayVal > homeVal : awayVal < homeVal;
+  const total = homeVal + awayVal || 1;
+  const homeWidth = Math.round((homeVal / total) * 100);
+
+  return (
+    <div className="col-span-2">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1 text-muted-foreground">
+          {icon}
+          <span className="text-[10px] uppercase tracking-wider">{label}</span>
+        </div>
+        <div className="flex items-center gap-3 font-mono text-xs">
+          <span className={cn("font-bold", homeWins ? "text-primary" : "text-muted-foreground")}>{format(homeVal)}</span>
+          <span className="text-muted-foreground/40 text-[10px]">vs</span>
+          <span className={cn("font-bold", awayWins ? "text-primary" : "text-muted-foreground")}>{format(awayVal)}</span>
+        </div>
+      </div>
+      <div className="h-1.5 flex rounded-full overflow-hidden bg-muted/40">
+        <div
+          style={{ width: `${homeWidth}%` }}
+          className={cn("transition-all duration-700", homeWins ? "bg-green-500/70" : "bg-muted-foreground/40")}
+        />
+        <div
+          style={{ width: `${100 - homeWidth}%` }}
+          className={cn("transition-all duration-700", awayWins ? "bg-primary/80" : "bg-muted-foreground/30")}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── Scorer Row ─────────────────────────────────────────────── */
+
+function ScorerRow({ scorer }: { scorer: { name: string; probability: number; goals: number } }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold truncate">{scorer.name}</div>
+        <div className="h-1 mt-0.5 bg-muted/40 rounded-full overflow-hidden">
+          <div
+            style={{ width: `${Math.min(scorer.probability, 100)}%` }}
+            className="h-full bg-primary/70 rounded-full transition-all duration-700"
+          />
+        </div>
+      </div>
+      <div className="flex-shrink-0 text-right">
+        <div className="text-[11px] font-mono text-primary font-bold">{scorer.probability}%</div>
+        <div className="text-[10px] text-muted-foreground font-mono">
+          {scorer.goals === 2 ? "brace" : "1 goal"}
+        </div>
       </div>
     </div>
   );

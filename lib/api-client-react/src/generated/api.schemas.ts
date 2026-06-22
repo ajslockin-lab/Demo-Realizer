@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * FIFA World Cup 2026 AI Predictor API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 export interface HealthStatus {
   status: string;
@@ -21,14 +21,35 @@ export interface MatchInput {
   venue: string;
   date: string;
   time: string;
-  homeRank: number;
-  awayRank: number;
-  homeForm: string;
-  awayForm: string;
-  homeGF: number;
-  homeGA: number;
-  awayGF: number;
-  awayGA: number;
+}
+
+export interface ScorelineProbability {
+  home: number;
+  away: number;
+  probability: number;
+}
+
+export interface ScorerEntry {
+  name: string;
+  probability: number;
+  goals: number;
+}
+
+export interface GoalscorerPrediction {
+  home: ScorerEntry[];
+  away: ScorerEntry[];
+}
+
+export interface ModelFeatures {
+  homeAttackStrength: number;
+  homeDefenseStrength: number;
+  awayAttackStrength: number;
+  awayDefenseStrength: number;
+  homeFormFactor: number;
+  awayFormFactor: number;
+  rankFactor: number;
+  homeXG: number;
+  awayXG: number;
 }
 
 export type PredictionConfidence = typeof PredictionConfidence[keyof typeof PredictionConfidence];
@@ -45,8 +66,13 @@ export interface Prediction {
   drawPct: number;
   awayWinPct: number;
   predictedScore: string;
+  homeXG: number;
+  awayXG: number;
+  scorelines: ScorelineProbability[];
+  goalscorers: GoalscorerPrediction;
   keyFactors: string[];
   confidence: PredictionConfidence;
   analysis: string;
+  modelFeatures: ModelFeatures;
 }
 

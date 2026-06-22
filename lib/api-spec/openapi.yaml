@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
+  version: 0.2.0
   description: FIFA World Cup 2026 AI Predictor API
 servers:
   - url: /api
@@ -10,14 +10,13 @@ tags:
   - name: health
     description: Health operations
   - name: predict
-    description: AI match prediction
+    description: AI match prediction with Poisson ML model
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -30,7 +29,7 @@ paths:
     post:
       operationId: predictMatch
       tags: [predict]
-      summary: Predict a match outcome using AI
+      summary: Predict a match outcome using Poisson regression + AI
       requestBody:
         required: true
         content:
@@ -39,11 +38,17 @@ paths:
               $ref: "#/components/schemas/MatchInput"
       responses:
         "200":
-          description: AI prediction result
+          description: Rich ML + AI prediction result
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Prediction"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           description: Prediction failed
           content:
@@ -55,38 +60,21 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
     ApiError:
       type: object
+      required: [error]
       properties:
         error:
           type: string
-      required:
-        - error
 
     MatchInput:
       type: object
-      required:
-        - id
-        - home
-        - away
-        - group
-        - venue
-        - date
-        - time
-        - homeRank
-        - awayRank
-        - homeForm
-        - awayForm
-        - homeGF
-        - homeGA
-        - awayGF
-        - awayGA
+      required: [id, home, away, group, venue, date, time]
       properties:
         id:
           type: string
@@ -102,22 +90,64 @@ components:
           type: string
         time:
           type: string
-        homeRank:
+
+    ScorelineProbability:
+      type: object
+      required: [home, away, probability]
+      properties:
+        home:
           type: integer
-        awayRank:
+        away:
           type: integer
-        homeForm:
+        probability:
+          type: number
+
+    ScorerEntry:
+      type: object
+      required: [name, probability, goals]
+      properties:
+        name:
           type: string
-        awayForm:
-          type: string
-        homeGF:
+        probability:
+          type: number
+        goals:
           type: integer
-        homeGA:
-          type: integer
-        awayGF:
-          type: integer
-        awayGA:
-          type: integer
+
+    GoalscorerPrediction:
+      type: object
+      required: [home, away]
+      properties:
+        home:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScorerEntry"
+        away:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScorerEntry"
+
+    ModelFeatures:
+      type: object
+      required: [homeAttackStrength, homeDefenseStrength, awayAttackStrength, awayDefenseStrength, homeFormFactor, awayFormFactor, rankFactor, homeXG, awayXG]
+      properties:
+        homeAttackStrength:
+          type: number
+        homeDefenseStrength:
+          type: number
+        awayAttackStrength:
+          type: number
+        awayDefenseStrength:
+          type: number
+        homeFormFactor:
+          type: number
+        awayFormFactor:
+          type: number
+        rankFactor:
+          type: number
+        homeXG:
+          type: number
+        awayXG:
+          type: number
 
     Prediction:
       type: object
@@ -126,9 +156,14 @@ components:
         - drawPct
         - awayWinPct
         - predictedScore
+        - homeXG
+        - awayXG
+        - scorelines
+        - goalscorers
         - keyFactors
         - confidence
         - analysis
+        - modelFeatures
       properties:
         homeWinPct:
           type: integer
@@ -138,6 +173,16 @@ components:
           type: integer
         predictedScore:
           type: string
+        homeXG:
+          type: number
+        awayXG:
+          type: number
+        scorelines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScorelineProbability"
+        goalscorers:
+          $ref: "#/components/schemas/GoalscorerPrediction"
         keyFactors:
           type: array
           items:
@@ -147,3 +192,5 @@ components:
           enum: ["High", "Medium", "Low"]
         analysis:
           type: string
+        modelFeatures:
+          $ref: "#/components/schemas/ModelFeatures"

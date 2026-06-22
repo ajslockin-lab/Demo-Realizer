@@ -6,12 +6,8 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface MatchInput {
-  id: string;
-  home: string;
-  away: string;
-  group: string;
-  venue: string;
-  date: string;
-  time: string;
+export interface ScorerEntry {
+  name: string;
+  probability: number;
+  goals: number;
 }
